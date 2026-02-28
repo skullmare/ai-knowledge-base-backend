@@ -2,78 +2,67 @@ const axios = require('axios');
 const FormData = require('form-data');
 const { qdrantClient } = require('../../config/qdrant');
 const crypto = require('crypto');
+const { OpenRouter } = require("@openrouter/sdk"); // Подключаем SDK
 
-// Константы из .env
-const UNSTRUCTURED_API_KEY = process.env.UNSTRUCTURED_API_KEY;
-const UNSTRUCTURED_URL = "https://api.unstructuredapp.io/general/v0/general";
+const DOCLING_URL = process.env.DOCLING_URL;
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
-const OPENROUTER_URL = "https://openrouter.ai/api/v1";
+
+// Инициализируем клиент OpenRouter
+const openrouter = new OpenRouter({
+    apiKey: OPENROUTER_API_KEY,
+});
 
 /**
- * 1. Умная нарезка через Облако Unstructured.io
+ * 1. Нарезка через Docling
  */
-async function getUnstructuredChunks(text) {
-    try {
-        const formData = new FormData();
-        formData.append('files', Buffer.from(text), { 
-            filename: 'content.txt',
-            contentType: 'text/plain' 
-        });
-        
-        // Настройки для качественного чанкинга
-        formData.append('strategy', 'hi_res');
-        formData.append('chunking_strategy', 'by_title'); // Режем по смысловым заголовкам
-        formData.append('max_characters', '1500');
-        formData.append('overlap', '200');
+async function getDoclingChunks(text) {
+    const formData = new FormData();
+    formData.append('files', Buffer.from(text), {
+        filename: 'content.md',
+        contentType: 'text/markdown'
+    });
+    // Твои проверенные настройки
+    formData.append('chunking_max_tokens', '2000');
+    formData.append('chunking_merge_peers', 'true');
 
-        const response = await axios.post(UNSTRUCTURED_URL, formData, {
-            headers: {
-                ...formData.getHeaders(),
-                'unstructured-api-key': UNSTRUCTURED_API_KEY
-            }
-        });
+    const response = await axios.post(`${DOCLING_URL}/v1/chunk/hybrid/file`, formData, {
+        headers: { ...formData.getHeaders() }
+    });
 
-        // Unstructured возвращает массив элементов (заголовки, текст, таблицы)
-        // Собираем их в массив текстовых чанков
-        return response.data.map(element => element.text).filter(t => t.length > 20);
-    } catch (error) {
-        console.error("⚠️ Unstructured Cloud Error:", error.response?.data || error.message);
-        // Резервный вариант: простой сплит
-        return text.split('\n\n').filter(t => t.trim().length > 0);
+    if (!response.data?.chunks || response.data.chunks.length === 0) {
+        throw new Error(`Docling не вернул чанки. Статус: ${response.data?.documents?.[0]?.status}`);
     }
+
+    console.log(`✅ Docling: ${response.data.chunks.length} чанков.`);
+    return response.data.chunks.map(c => c.text || c.raw_text).filter(Boolean);
 }
 
 /**
- * 2. Получение векторов через OpenRouter
+ * 2. Векторизация через SDK
  */
 async function getEmbeddings(chunks) {
-    const response = await axios.post(`${OPENROUTER_URL}/embeddings`, {
-        model: "openai/text-embedding-3-small",
-        input: chunks
-    }, {
-        headers: {
-            "Authorization": `Bearer ${OPENROUTER_API_KEY}`,
-            "HTTP-Referer": "http://localhost:3000",
-            "Content-Type": "application/json"
+    const embedding = await openrouter.embeddings.generate({
+        requestBody: {
+            model: "openai/text-embedding-3-small",
+            input: chunks, // SDK сам отправит массив правильно
+            encodingFormat: "float"
         }
     });
-    return response.data.data;
+
+    // SDK возвращает объект, где данные лежат в .data
+    return embedding.data;
 }
 
 /**
- * 3. Итоговая функция: Текст -> Unstructured -> OpenRouter -> Qdrant
+ * 3. Пайплайн
  */
 async function syncTopicToQdrant(topic) {
     try {
-        console.log(`⏳ Начинаю обработку статьи: "${topic.name}"...`);
-        
-        // Шаг 1: Нарезка в облаке
-        const chunks = await getUnstructuredChunks(topic.content);
-        
-        // Шаг 2: Векторизация
+        console.log(`⏳ Обработка: "${topic.name}"...`);
+
+        const chunks = await getDoclingChunks(topic.content);
         const embeddingData = await getEmbeddings(chunks);
 
-        // Шаг 3: Подготовка данных для Qdrant
         const points = embeddingData.map((item, index) => ({
             id: crypto.randomUUID(),
             vector: item.embedding,
@@ -88,12 +77,12 @@ async function syncTopicToQdrant(topic) {
             }
         }));
 
-        // Шаг 4: Сохранение в локальный Qdrant (или облачный)
         await qdrantClient.upsert("knowledge_base", { wait: true, points });
-        
-        console.log(`✅ Успех! Статья "${topic.name}" теперь в векторной базе (${points.length} чанков).`);
+
+        console.log(`✅ Успех! Статья сохранена в Qdrant.`);
     } catch (error) {
-        console.error("❌ Ошибка в пайплайне синхронизации:", error.message);
+        // SDK пробрасывает ошибки в понятном виде
+        console.error("❌ Ошибка пайплайна:", error.message);
     }
 }
 
