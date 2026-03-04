@@ -1,34 +1,41 @@
-// middlewares/permission.middleware.js
 const User = require('../models/platformUser');
 
-const checkPermission = (requiredPermissions) => {
+const checkPermission = (required) => {
     return async (req, res, next) => {
         try {
-            // Превращаем в массив, если пришла одна строка
-            const permissionsArray = Array.isArray(requiredPermissions) 
-                ? requiredPermissions 
-                : [requiredPermissions];
+            const requiredArray = Array.isArray(required) ? required : [required];
 
-            const user = await User.findById(req.user.id).populate('role');
+            // Senior tip: Мы уже имеем данные в req.user. Если нужно актуальное состояние из БД:
+            const user = await User.findById(req.user.id).populate('role').lean();
             
-            if (!user || !user.role) {
-                return res.status(403).json({ message: 'Доступ запрещен' });
+            if (!user?.role?.permissions) {
+                return res.status(403).json({
+                    success: false,
+                    message: 'Доступ запрещен',
+                    errors: [{ path: 'role', message: 'Роль или права пользователя не определены' }]
+                });
             }
 
-            // Проверяем: есть ли у юзера Все права из списка
-            const hasPermission = permissionsArray.every(p => 
-                user.role.permissions.includes(p)
-            );
+            const hasAll = requiredArray.every(p => user.role.permissions.includes(p));
 
-            if (!hasPermission) {
-                return res.status(403).json({ 
-                    message: `Недостаточно прав. Требуется: ${permissionsArray.join(', ')}` 
+            if (!hasAll) {
+                return res.status(403).json({
+                    success: false,
+                    message: 'Недостаточно прав',
+                    errors: [{ 
+                        path: 'permissions', 
+                        message: `Требуются права: ${requiredArray.join(', ')}` 
+                    }]
                 });
             }
 
             next();
-        } catch (e) {
-            res.status(500).json({ message: 'Ошибка авторизации' });
+        } catch (error) {
+            return res.status(500).json({
+                success: false,
+                message: 'Ошибка проверки прав',
+                errors: [{ path: 'server', message: error.message }]
+            });
         }
     };
 };

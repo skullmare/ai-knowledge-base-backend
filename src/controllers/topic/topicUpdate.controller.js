@@ -4,105 +4,87 @@ const { processTopicFiles, deleteSingleFileFromS3 } = require('../../services/st
 const { patchTopicSchema } = require('../../schemas/topic.schema');
 
 module.exports = async (req, res) => {
+    const { id } = req.params;
     try {
-        const { id } = req.params;
-
-        // 1. Подготовка данных
-        const bodyForValidation = { ...req.body };
-        if (typeof bodyForValidation.metadata === 'string') bodyForValidation.metadata = JSON.parse(bodyForValidation.metadata);
-        if (typeof bodyForValidation.filesToDelete === 'string') bodyForValidation.filesToDelete = JSON.parse(bodyForValidation.filesToDelete);
-        if (typeof bodyForValidation.files_metadata === 'string') bodyForValidation.files_metadata = JSON.parse(bodyForValidation.files_metadata);
-
-        const validation = await patchTopicSchema.safeParseAsync({
-            params: req.params,
-            body: bodyForValidation
+        const payload = { ...req.body };
+        ['metadata', 'filesToDelete', 'files_metadata'].forEach(f => {
+            if (typeof payload[f] === 'string') try { payload[f] = JSON.parse(payload[f]); } catch (e) {}
         });
 
+        const validation = await patchTopicSchema.safeParseAsync({ params: req.params, body: payload });
         if (!validation.success) {
-            const formattedErrors = validation.error.issues.reduce((acc, issue) => {
-                const path = issue.path.join('.');
-                acc[path] = issue.message;
-                return acc;
-            }, {});
-
             return res.status(400).json({
-                message: "Ошибка валидации данных",
-                errors: formattedErrors
+                success: false,
+                message: 'Ошибка валидации',
+                errors: validation.error.issues.map(err => ({
+                    path: err.path.filter(p => !['body', 'params'].includes(p)).join('.') || 'id',
+                    message: err.message
+                }))
             });
         }
 
-        const { name, content, metadata, filesToDelete, files_metadata } = validation.data.body;
-
+        const { body: data } = validation.data;
         const topic = await Topic.findById(id);
-        if (!topic) return res.status(404).json({ message: 'Не найден' });
+        if (!topic) return res.status(404).json({
+            success: false,
+            message: 'Не найдено',
+            errors: [{ path: 'id', message: 'Тема не существует' }]
+        });
 
-        // 2. Подготовка операторов обновления
-        const updateQuery = { $set: {}, $push: {} };
-        const logs = [];
+        const update = { $set: {}, $push: {}, $pull: {} };
+        const changes = [];
 
-        // 3. Удаление файлов (сразу обновляем БД, чтобы не было конфликтов)
-        if (filesToDelete && filesToDelete.length > 0) {
-            // Проверка: удаляем только те файлы, что реально принадлежат этому топику
-            const currentUrls = topic.files.map(f => f.url);
-            const validToDelete = filesToDelete.filter(url => currentUrls.includes(url));
-
-            if (validToDelete.length > 0) {
-                validToDelete.forEach(url => deleteSingleFileFromS3(url));
-                await Topic.findByIdAndUpdate(id, {
-                    $pull: { files: { url: { $in: validToDelete } } }
-                });
-                logs.push(`удалено файлов: ${validToDelete.length}`);
+        if (data.filesToDelete?.length) {
+            const valid = data.filesToDelete.filter(url => topic.files.some(f => f.url === url));
+            if (valid.length) {
+                valid.forEach(url => deleteSingleFileFromS3(url));
+                update.$pull.files = { url: { $in: valid } };
+                changes.push(`удалено: ${valid.length}`);
             }
         }
 
-        // 4. Новые файлы
-        if (req.files && req.files.length > 0) {
-            const newFiles = await processTopicFiles(req.files, files_metadata || {}, id);
-            // Правильное использование $push
-            updateQuery.$push.files = { $each: newFiles };
-            logs.push(`добавлено файлов: ${newFiles.length}`);
-        }
-
-        // 5. Текстовые поля и метаданные
-        if (name) updateQuery.$set.name = name;
-        if (content) updateQuery.$set.content = content;
-
-        if (metadata) {
-            Object.keys(metadata).forEach(key => {
-                updateQuery.$set[`metadata.${key}`] = metadata[key];
+        if (req.files?.length) {
+            const missing = req.files.find(f => !data.files_metadata?.[f.originalname]);
+            if (missing) return res.status(400).json({
+                success: false,
+                message: 'Ошибка файлов',
+                errors: [{ path: 'files_metadata', message: `Нет описания для: ${missing.originalname}` }]
             });
+            const uploaded = await processTopicFiles(req.files, data.files_metadata, id);
+            update.$push.files = { $each: uploaded };
+            changes.push(`добавлено: ${uploaded.length}`);
         }
 
-        // 6. Статус и индексация
-        if (name || content) {
-            updateQuery.$set.status = 'review';
-            updateQuery.$set['vectorData.isIndexed'] = false;
-        }
+        ['name', 'content'].forEach(f => {
+            if (data[f]) {
+                update.$set[f] = data[f];
+                update.$set.status = 'review';
+                update.$set['vectorData.isIndexed'] = false;
+            }
+        });
 
-        // Убираем пустые операторы, чтобы Mongo не ругался
-        if (Object.keys(updateQuery.$set).length === 0) delete updateQuery.$set;
-        if (Object.keys(updateQuery.$push).length === 0) delete updateQuery.$push;
+        if (data.metadata) Object.keys(data.metadata).forEach(k => update.$set[`metadata.${k}`] = data.metadata[k]);
 
-        // 7. Финальное обновление
-        const updatedTopic = await Topic.findByIdAndUpdate(
-            id,
-            updateQuery,
-            { new: true, runValidators: true }
-        ).populate('metadata.category', 'name');
+        ['$set', '$push', '$pull'].forEach(op => { if (!Object.keys(update[op]).length) delete update[op]; });
 
-        // 8. Лог
+        const result = Object.keys(update).length 
+            ? await Topic.findByIdAndUpdate(id, update, { new: true, runValidators: true }).populate('metadata.category', 'name')
+            : topic;
+
         await Log.create({
             action: 'TOPIC_PATCHED',
             user: req.user.id,
             entityType: 'Topic',
             entityId: id,
-            details: { changes: logs, name: updatedTopic.name }
+            details: { changes, name: result?.name || topic.name }
         });
 
-        res.json(updatedTopic);
-
+        return res.status(200).json({ success: true, message: 'Тема обновлена', data: result });
     } catch (error) {
-        console.error('❌ PATCH Error:', error);
-        res.status(500).json({ message: 'Ошибка PATCH', error: error.message });
+        return res.status(500).json({
+            success: false,
+            message: 'Ошибка сервера',
+            errors: [{ path: 'server', message: error.message }]
+        });
     }
 };
