@@ -10,27 +10,37 @@ async function initQdrant() {
         if (!exists) {
             await qdrantClient.createCollection(collectionName, {
                 vectors: {
-                    size: 1536, // Размерность для OpenAI (text-embedding-3-small)
-                    distance: 'Cosine' // Косинусное сходство — стандарт для текстов
+                    size: 1536, 
+                    distance: 'Cosine'
                 }
             });
 
+            // 1. Индекс для категорий (нужен для фильтрации в поиске)
             await qdrantClient.createPayloadIndex(collectionName, {
                 field_name: "metadata.category",
                 field_schema: "keyword"
             });
 
+            // 2. Индекс для ролей (КРИТИЧЕСКИ ВАЖЕН для безопасности/RBAC)
             await qdrantClient.createPayloadIndex(collectionName, {
                 field_name: "metadata.accessibleByRoles",
                 field_schema: "keyword"
             });
 
-            console.log(`✅ Инициализация коллекции ${collectionName} в Qdrant успешно завершена`);
+            // 3. Индекс для ID топика (КРИТИЧЕСКИ ВАЖЕН для быстрого удаления/обновления)
+            await qdrantClient.createPayloadIndex(collectionName, {
+                field_name: "metadata.topicId",
+                field_schema: "keyword"
+            });
+
+            console.log(`✅ Инициализация коллекции ${collectionName} и всех индексов завершена`);
         } else {
-            console.log(`ℹ️  Коллекции ${collectionName} уже существует, пропуск создания`);
+            // Даже если коллекция существует, полезно убедиться, что индекс для topicId есть.
+            // Но для простоты пока оставим так.
+            console.log(`ℹ️ Коллекция ${collectionName} уже существует`);
         }
     } catch (error) {
-        console.error("❌ Ошибка при инициализации коллекции в Qdrant:", error);
+        console.error("❌ Ошибка при инициализации Qdrant:", error);
     }
 }
 

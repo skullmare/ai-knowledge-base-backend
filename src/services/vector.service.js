@@ -2,15 +2,32 @@ const axios = require('axios');
 const FormData = require('form-data');
 const { qdrantClient } = require('../../config/qdrant');
 const crypto = require('crypto');
-const { OpenRouter } = require("@openrouter/sdk"); // Подключаем SDK
+const { OpenRouter } = require("@openrouter/sdk");
 
 const DOCLING_URL = process.env.DOCLING_URL;
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
+const COLLECTION_NAME = "knowledge_base";
 
-// Инициализируем клиент OpenRouter
 const openrouter = new OpenRouter({
     apiKey: OPENROUTER_API_KEY,
 });
+
+/**
+ * Вспомогательная функция для удаления всех чанков конкретного топика из Qdrant
+ */
+async function deleteTopicFromQdrant(topicId) {
+    console.log(`🧹 Очистка старых векторов для топика: ${topicId}`);
+    return await qdrantClient.delete(COLLECTION_NAME, {
+        filter: {
+            must: [
+                {
+                    key: "metadata.topicId",
+                    match: { value: topicId.toString() }
+                }
+            ]
+        }
+    });
+}
 
 /**
  * 1. Нарезка через Docling
@@ -21,8 +38,8 @@ async function getDoclingChunks(text) {
         filename: 'content.md',
         contentType: 'text/markdown'
     });
-    // Твои проверенные настройки
-    formData.append('chunking_max_tokens', '2000');
+    
+    formData.append('chunking_max_tokens', '800');
     formData.append('chunking_merge_peers', 'true');
 
     const response = await axios.post(`${DOCLING_URL}/v1/chunk/hybrid/file`, formData, {
@@ -30,7 +47,7 @@ async function getDoclingChunks(text) {
     });
 
     if (!response.data?.chunks || response.data.chunks.length === 0) {
-        throw new Error(`Docling не вернул чанки. Статус: ${response.data?.documents?.[0]?.status}`);
+        throw new Error(`❌ Docling не вернул чанки. Статус: ${response.data?.documents?.[0]?.status}`);
     }
 
     console.log(`✅ Docling: ${response.data.chunks.length} чанков.`);
@@ -41,49 +58,85 @@ async function getDoclingChunks(text) {
  * 2. Векторизация через SDK
  */
 async function getEmbeddings(chunks) {
+    // text-embedding-3-small поддерживает до 8191 токенов на вход.
+    // Если чанков очень много, SDK OpenRouter справится, но для гигантских текстов
+    // здесь можно будет добавить разбиение на батчи.
     const embedding = await openrouter.embeddings.generate({
         requestBody: {
             model: "openai/text-embedding-3-small",
-            input: chunks, // SDK сам отправит массив правильно
+            input: chunks,
             encodingFormat: "float"
         }
     });
 
-    // SDK возвращает объект, где данные лежат в .data
     return embedding.data;
 }
 
 /**
- * 3. Пайплайн
+ * 3. Основной пайплайн синхронизации
  */
 async function syncTopicToQdrant(topic) {
     try {
-        console.log(`⏳ Обработка: "${topic.name}"...`);
+        const topicIdStr = topic._id.toString();
+        console.log(`⏳ Начало синхронизации: "${topic.name}" (${topicIdStr})`);
 
-        const chunks = await getDoclingChunks(topic.content);
+        // ШАГ 1: Сначала удаляем старое, чтобы избежать дублей
+        await deleteTopicFromQdrant(topicIdStr);
+
+        // --- НОВЫЙ ЭТАП: ОБОГАЩЕНИЕ КОНТЕНТА ---
+        // Добавляем информацию о файлах в конец текста, чтобы Docling их проиндексировал
+        let enhancedContent = topic.content;
+        
+        if (topic.files && topic.files.length > 0) {
+            const filesMarkdown = topic.files
+                .map(f => `* Документ: ${f.description}. Ссылка: ${f.url}`)
+                .join('\n');
+            
+            enhancedContent += `\n\n### Приложенные дополнительные материалы и файлы:\n${filesMarkdown}`;
+        }
+        // ---------------------------------------
+
+        // ШАГ 2: Получаем чанки (используем обогащенный контент)
+        const chunks = await getDoclingChunks(enhancedContent);
+
+        // ШАГ 3: Получаем векторы
         const embeddingData = await getEmbeddings(chunks);
 
+        // ШАГ 4: Формируем поинты для Qdrant
         const points = embeddingData.map((item, index) => ({
             id: crypto.randomUUID(),
             vector: item.embedding,
             payload: {
                 text: chunks[index],
                 metadata: {
-                    topicId: topic._id.toString(),
+                    topicId: topicIdStr,
                     name: topic.name,
-                    category: topic.metadata.category.toString(),
-                    accessibleByRoles: topic.metadata.accessibleByRoles.map(r => r.toString())
+                    category: topic.metadata.category?._id?.toString() || topic.metadata.category.toString(),
+                    accessibleByRoles: topic.metadata.accessibleByRoles.map(r => r.toString()),
+                    // Сохраняем массив файлов в метаданных каждого чанка для быстрого доступа бота
+                    files: topic.files.map(f => ({
+                        url: f.url,
+                        description: f.description
+                    }))
                 }
             }
         }));
 
-        await qdrantClient.upsert("knowledge_base", { wait: true, points });
+        // ШАГ 5: Загружаем в Qdrant
+        await qdrantClient.upsert(COLLECTION_NAME, { 
+            wait: true, 
+            points 
+        });
 
-        console.log(`✅ Успех! Статья сохранена в Qdrant.`);
+        console.log(`✅ Топик "${topic.name}" векторизован. Поинтов: ${points.length}. Файлов встроено: ${topic.files.length}`);
+        return true;
     } catch (error) {
-        // SDK пробрасывает ошибки в понятном виде
-        console.error("❌ Ошибка пайплайна:", error.message);
+        console.error("❌ Ошибка в vector.service:", error.message);
+        throw error; 
     }
 }
 
-module.exports = { syncTopicToQdrant };
+module.exports = { 
+    syncTopicToQdrant, 
+    deleteTopicFromQdrant 
+};

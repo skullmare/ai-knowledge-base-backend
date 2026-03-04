@@ -5,7 +5,7 @@ const topicSchema = new mongoose.Schema({
     type: String,
     required: true,
     trim: true,
-    index: true 
+    index: true
   },
   content: {
     type: String,
@@ -13,14 +13,15 @@ const topicSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['draft', 'review', 'approved', 'archived'],
-    default: 'draft',
-    index: true 
+    enum: ['review', 'approved', 'archived'],
+    default: 'review',
+    index: true
   },
   files: [{
-    description: { type: String, trim: true },
+    name: { type: String, trim: true, required: true },
+    description: { type: String, trim: true, required: true },
     url: { type: String, required: true },
-    fileType: { type: String } 
+    fileType: { type: String }
   }],
   createdBy: {
     type: mongoose.Schema.Types.ObjectId,
@@ -37,22 +38,34 @@ const topicSchema = new mongoose.Schema({
     // chunkIds не храним, чистим в Qdrant по metadata.topicId
   },
   metadata: {
-    // Единственная категория для четкой классификации
     category: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'TopicCategory',
       required: true,
-      index: true
+      index: true,
+      validate: {
+        validator: async function (v) {
+          const topicCategory = await mongoose.model('TopicCategory').findById(v);
+          return !!topicCategory;
+        },
+        message: 'Указанная категория TopicCategory не существует.'
+      }
     },
-    // Роли для фильтрации доступа в векторной базе
     accessibleByRoles: [{
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'AgentRole',
-      required: true // Важно для безопасности корпоративного консультанта
+      ref: 'AgentRole', // Исправлено на AgentRole
+      required: true,
+      validate: {
+        validator: async function (v) {
+          const agentRole = await mongoose.model('AgentRole').findById(v);
+          return !!agentRole;
+        },
+        message: 'Указанная роль AgentRole не существует.'
+      }
     }]
   }
 }, {
-  timestamps: true 
+  timestamps: true
 });
 
 // Индекс для поиска в админке

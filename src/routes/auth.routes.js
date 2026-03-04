@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { login, refresh, me } = require('../controllers/auth.controller');
+const { login, refresh, me } = require('../controllers/auth/auth.controller');
 const { auth } = require('../middlewares/auth.middleware');
 
 // Публичные роуты

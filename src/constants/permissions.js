@@ -25,7 +25,16 @@ const PERMISSIONS_CONFIG = {
             UPDATE: { key: 'topics.update', label: 'Редактирование существующих тем' },
             ARCHIVE: { key: 'topics.archive', label: 'Архивация устаревших тем' },
             DELETE: { key: 'topics.delete', label: 'Полное удаление тем' },
-            APPROVE: { key: 'topics.approve', label: 'Модерация и публикация тем' },
+            APPROVE: { key: 'topics.approve', label: 'Модерация и векторизация тем' },
+        }
+    },
+    TOPIC_CATEGORIES: {
+        label: "Категории базы знаний",
+        actions: {
+            READ: { key: 'topicCategories.read', label: 'Просмотр списка категорий' },
+            CREATE: { key: 'topicCategories.create', label: 'Создание новых категорий' },
+            UPDATE: { key: 'topicCategories.update', label: 'Редактирование категорий' },
+            DELETE: { key: 'topicCategories.delete', label: 'Удаление категорий' },
         }
     },
     ROLES: {
@@ -35,6 +44,15 @@ const PERMISSIONS_CONFIG = {
             CREATE: { key: 'role.create', label: 'Создание новых ролей' },
             UPDATE: { key: 'role.update', label: 'Редактирование ролей' },
             DELETE: { key: 'role.delete', label: 'Удаление ролей' },
+        }
+    },
+    AGENT_ROLES: {
+        label: "Роли пользоватетей ИИ агента",
+        actions: {
+            READ: { key: 'agentRoles.read', label: 'Просмотр списка ролей пользователей ИИ агента' },
+            CREATE: { key: 'agentRoles.create', label: 'Создание новых ролей пользователей ИИ агента' },
+            UPDATE: { key: 'agentRoles.update', label: 'Редактирование ролей пользователей ИИ агента' },
+            DELETE: { key: 'agentRoles.delete', label: 'Удаление ролей пользователей ИИ агента' },
         }
     },
     LOGS: {

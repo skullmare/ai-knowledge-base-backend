@@ -5,6 +5,8 @@ const { connectDB, disconnectDB } = require('./config/mongo');
 const { seedRoles } = require('./src/init/seedRoles');
 const { seedAgentRoles } = require('./src/init/seedAgentRoles');
 const { seedSuperAdmin } = require('./src/init/seedSuperAdmin');
+const { seedSystemSettings } = require('./src/init/seedSystemSettings');
+const { seedTopicCategories } = require('./src/init/seedTopicCategories');
 const { initQdrant } = require('./src/init/initQdrant');
 
 const PORT = process.env.PORT || 3000;
@@ -17,6 +19,8 @@ const startServer = async () => {
     // 2. Инициализируем системные записи в базе данных
     await seedRoles();
     await seedAgentRoles();
+    await seedSystemSettings();
+    await seedTopicCategories();
     await seedSuperAdmin();
     // 3. Инициализируем векторную базу данных
     await initQdrant();
