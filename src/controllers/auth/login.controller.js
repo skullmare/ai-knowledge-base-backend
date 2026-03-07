@@ -1,6 +1,6 @@
 const authService = require('../../services/auth.service');
 const User = require('../../models/platformUser');
-const { comparePassword } = require('../../utils/passwordHelper'); // Используем нашу утилиту
+const { comparePassword } = require('../../utils/passwordHandler'); // Используем нашу утилиту
 const successHandler = require('../../utils/successHandler');
 const errorHandler = require('../../utils/errorHandler');
 const logHandler = require('../../utils/logHandler');

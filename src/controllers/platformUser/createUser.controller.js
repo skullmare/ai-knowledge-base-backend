@@ -1,6 +1,6 @@
 const User = require('../../models/platformUser');
 const { createUserSchema } = require('../../schemas/user.schema');
-const { hashPassword } = require('../../utils/passwordHelper');
+const { hashPassword } = require('../../utils/passwordHandler');
 
 // Подключаем утилиты и конфиг
 const successHandler = require('../../utils/successHandler');

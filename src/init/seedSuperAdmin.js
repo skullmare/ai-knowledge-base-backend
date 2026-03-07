@@ -1,7 +1,7 @@
 require('dotenv').config(); // Загружаем переменные окружения
 const User = require('../models/platformUser');
 const Role = require('../models/platformRole');
-const { hashPassword } = require('../utils/passwordHelper'); // Используем нашу новую утилиту
+const { hashPassword } = require('../utils/passwordHandler'); // Используем нашу новую утилиту
 
 const login = process.env.LOGIN_SUPER_ADMIN;
 const password = process.env.PASSWORD_SUPER_ADMIN;
