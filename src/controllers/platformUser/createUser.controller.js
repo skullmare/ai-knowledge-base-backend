@@ -1,6 +1,6 @@
-const User = require('../../models/platformUser'); // Предполагаю путь к модели
+const User = require('../../models/platformUser');
 const { createUserSchema } = require('../../schemas/user.schema');
-const bcrypt = require('bcryptjs');
+const { hashPassword } = require('../../utils/passwordHelper');
 
 // Подключаем утилиты и конфиг
 const successHandler = require('../../utils/successHandler');
@@ -12,14 +12,14 @@ module.exports = async (req, res) => {
     const currentUserId = req.user?.id;
 
     try {
-        // 1. Валидация входных данных (body)
+        // 1. Валидация (включая проверку уникальности логина в БД)
         const validation = await createUserSchema.safeParseAsync({ body: req.body });
         
         if (!validation.success) {
             return errorHandler(
                 res,
                 400,
-                'Ошибка валидации данных пользователя',
+                'Ошибка валидации',
                 validation.error.issues.map(err => ({
                     path: err.path.filter(p => p !== 'body').join('.'),
                     message: err.message
@@ -29,23 +29,16 @@ module.exports = async (req, res) => {
 
         const { body: data } = validation.data;
 
-        // 2. Проверка уникальности логина (дополнительный слой безопасности)
-        const existingUser = await User.findOne({ login: data.login });
-        if (existingUser) {
-            return errorHandler(res, 400, 'Пользователь с таким логином уже зарегистрирован');
-        }
+        // 2. Хеширование пароля через утилиту
+        const hashedPassword = await hashPassword(data.password);
 
-        // 3. Хеширование пароля
-        const salt = await bcrypt.genSalt(10);
-        const hashedPassword = await bcrypt.hash(data.password, salt);
-
-        // 4. Создание записи в БД
+        // 3. Создание записи
         const newUser = await User.create({
             ...data,
             password: hashedPassword
         });
 
-        // 5. Логирование успешного действия (PLATFORM_USER_CREATE)
+        // 4. Логирование (PLATFORM_USER_CREATE)
         await logHandler({
             action: ACTIONS_CONFIG.PLATFORM_USERS.actions.CREATE.key,
             message: `Создан новый сотрудник: ${newUser.login} (${newUser.firstName} ${newUser.lastName})`,
@@ -54,18 +47,16 @@ module.exports = async (req, res) => {
             status: 'success'
         });
 
-        // Подготовка данных для ответа (исключаем пароль)
+        // Подготовка данных для ответа
         const responseData = newUser.toObject();
         delete responseData.password;
 
-        // 6. Успешный ответ
         return successHandler(res, 201, 'Сотрудник успешно создан', responseData);
 
     } catch (error) {
-        // Логируем системную ошибку (PLATFORM_USER_ERROR)
         await logHandler({
             action: ACTIONS_CONFIG.PLATFORM_USERS.actions.SERVER_ERROR.key,
-            message: `Критическая ошибка при создании сотрудника: ${error.message}`,
+            message: `Ошибка при создании сотрудника: ${error.message}`,
             userId: currentUserId,
             status: 'error'
         });

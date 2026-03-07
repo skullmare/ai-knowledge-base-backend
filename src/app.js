@@ -17,7 +17,7 @@ app.use(express.urlencoded({ extended: true }));
 // Маршруты
 app.use('/api/v1/health', healthRoutes);
 app.use('/api/v1/auth', authRoutes);
-app.use('/api/v1/user', userRoutes);
+app.use('/api/v1/users', userRoutes);
 app.use('/api/v1/topics', topicRoutes);
 app.use('/api/v1/files', fileRoutes);
 
