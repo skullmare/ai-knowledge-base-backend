@@ -68,6 +68,12 @@ const PERMISSIONS_CONFIG = {
             UPDATE: { key: 'system_settings.update', label: 'Редактирование системных настроек' }
         }
     },
+    FILES: {
+        label: "Файлы",
+        actions: {
+            UPLOAD: { key: 'files.upload', label: 'Загрузка файлов' },
+        }
+    },
 };
 
 // Плоский массив ключей для Mongoose: ['platformUsers.read', 'agentUsers.read', ...]

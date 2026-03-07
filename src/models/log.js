@@ -1,50 +1,54 @@
 const mongoose = require('mongoose');
+// Импортируем подготовленные данные из твоего конфига
+const { ALL_ACTIONS, ACTIONS_CONFIG } = require('../constants/actions');
+
+// Динамически получаем список всех возможных сущностей (Entity) из конфига
+const ALL_ENTITIES = [...new Set(Object.values(ACTIONS_CONFIG).map(group => group.entity))];
 
 const logSchema = new mongoose.Schema({
-    // Название события (например: "TOPIC_CREATED", "USER_BLOCKED", "SETTINGS_UPDATED")
+    // Название события (теперь строго валидируется через enum)
     action: {
         type: String,
         required: true,
+        enum: ALL_ACTIONS, // Используем плоский массив ключей
         index: true
+    },
+    // Краткое описание или системное сообщение
+    message: {
+        type: String,
+        required: true 
     },
     // Кто совершил действие
     user: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'PlatformUser', // Ссылка на модель сотрудника
-        required: true,
+        ref: 'PlatformUser',
+        required: false, // Изменил на false, так как LOGIN_FAILED может быть без юзера
         index: true
     },
-    // Тип сущности (например: "Topic", "AgentUser", "Role")
+    // Тип сущности
     entityType: {
         type: String,
         required: true,
-        enum: ['Topic', 'TopicCategory', 'AgentUser', 'AgentRole', 'Role', 'PlatformUser', 'System']
+        enum: ALL_ENTITIES, // Подтягивается автоматически из ACTIONS_CONFIG
+        index: true
     },
-    // ID объекта, над которым совершили действие
+    // ID объекта (к которому относится лог)
     entityId: {
         type: mongoose.Schema.Types.ObjectId,
         index: true
     },
-    // Детали изменений (было / стало) или просто описание
-    details: {
-        oldValue: { type: mongoose.Schema.Types.Mixed },
-        newValue: { type: mongoose.Schema.Types.Mixed },
-        message: { type: String }
-    },
-    // Статус операции (успех или ошибка)
+    // Статус операции
     status: {
         type: String,
-        enum: ['success', 'error', 'warning'],
+        enum: ['success', 'error'],
         default: 'success'
-    },
-    // IP адрес или User-Agent (полезно для безопасности)
-    metadata: {
-        ip: String,
-        userAgent: String
     }
 }, {
-    timestamps: true // createdAt заменяет нам поле "время совершения"
+    timestamps: true 
 });
+
+// Добавляем индекс для быстрого поиска логов по конкретному объекту и его типу
+logSchema.index({ entityType: 1, entityId: 1 });
 
 const Log = mongoose.model('Log', logSchema);
 module.exports = Log;

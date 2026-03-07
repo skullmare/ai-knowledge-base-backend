@@ -1,90 +1,123 @@
 const Topic = require('../../models/topic');
-const Log = require('../../models/log');
-const { processTopicFiles, deleteSingleFileFromS3 } = require('../../services/storage.service');
+const { deleteMultipleFilesFromS3 } = require('../../services/storage.service');
 const { patchTopicSchema } = require('../../schemas/topic.schema');
+
+// Утилиты и конфиг
+const successHandler = require('../../utils/successHandler');
+const errorHandler = require('../../utils/errorHandler');
+const logHandler = require('../../utils/logHandler');
+const { ACTIONS_CONFIG } = require('../../constants/actions');
 
 module.exports = async (req, res) => {
     const { id } = req.params;
-    try {
-        const payload = { ...req.body };
-        ['metadata', 'filesToDelete', 'files_metadata'].forEach(f => {
-            if (typeof payload[f] === 'string') try { payload[f] = JSON.parse(payload[f]); } catch (e) {}
-        });
+    const userId = req.user?.id;
 
-        const validation = await patchTopicSchema.safeParseAsync({ params: req.params, body: payload });
+    try {
+        // 1. Валидация входных данных
+        const validation = await patchTopicSchema.safeParseAsync({ params: req.params, body: req.body });
+
         if (!validation.success) {
-            return res.status(400).json({
-                success: false,
-                message: 'Ошибка валидации',
-                errors: validation.error.issues.map(err => ({
+            // Логирование пропущено: экшен отсутствует в ACTIONS_CONFIG
+            return errorHandler(
+                res,
+                400,
+                'Ошибка валидации',
+                validation.error.issues.map(err => ({
                     path: err.path.filter(p => !['body', 'params'].includes(p)).join('.') || 'id',
                     message: err.message
                 }))
-            });
+            );
         }
 
         const { body: data } = validation.data;
         const topic = await Topic.findById(id);
-        if (!topic) return res.status(404).json({
-            success: false,
-            message: 'Не найдено',
-            errors: [{ path: 'id', message: 'Тема не существует' }]
-        });
+
+        // 2. Проверка существования документа
+        if (!topic) {
+            // Логирование пропущено: экшен отсутствует в ACTIONS_CONFIG
+            return errorHandler(
+                res,
+                404,
+                'Объект не найден',
+                [{ path: 'id', message: 'Тема не существует' }]
+            );
+        }
 
         const update = { $set: {}, $push: {}, $pull: {} };
-        const changes = [];
+        let changeSummary = [];
 
+        // 3. Логика обработки файлов через S3
         if (data.filesToDelete?.length) {
-            const valid = data.filesToDelete.filter(url => topic.files.some(f => f.url === url));
-            if (valid.length) {
-                valid.forEach(url => deleteSingleFileFromS3(url));
-                update.$pull.files = { url: { $in: valid } };
-                changes.push(`удалено: ${valid.length}`);
+            const toDelete = data.filesToDelete.filter(url => topic.files.some(f => f.url === url));
+            if (toDelete.length) {
+                await deleteMultipleFilesFromS3(toDelete);
+                update.$pull.files = { url: { $in: toDelete } };
+                changeSummary.push(`удалено файлов: ${toDelete.length}`);
             }
         }
 
-        if (req.files?.length) {
-            const missing = req.files.find(f => !data.files_metadata?.[f.originalname]);
-            if (missing) return res.status(400).json({
-                success: false,
-                message: 'Ошибка файлов',
-                errors: [{ path: 'files_metadata', message: `Нет описания для: ${missing.originalname}` }]
-            });
-            const uploaded = await processTopicFiles(req.files, data.files_metadata, id);
-            update.$push.files = { $each: uploaded };
-            changes.push(`добавлено: ${uploaded.length}`);
+        if (data.files?.length) {
+            update.$push.files = { $each: data.files };
+            changeSummary.push(`добавлено файлов: ${data.files.length}`);
         }
 
-        ['name', 'content'].forEach(f => {
-            if (data[f]) {
-                update.$set[f] = data[f];
-                update.$set.status = 'review';
+        // 4. Текстовые поля и сброс состояния индексации
+        ['name', 'content'].forEach(field => {
+            if (data[field]) {
+                update.$set[field] = data[field];
+                update.$set.status = 'review'; 
                 update.$set['vectorData.isIndexed'] = false;
+                changeSummary.push(`изменено поле: ${field}`);
             }
         });
 
-        if (data.metadata) Object.keys(data.metadata).forEach(k => update.$set[`metadata.${k}`] = data.metadata[k]);
+        // 5. Обновление метаданных
+        if (data.metadata) {
+            Object.keys(data.metadata).forEach(key => {
+                update.$set[`metadata.${key}`] = data.metadata[key];
+            });
+            changeSummary.push('обновлены метаданные');
+        }
 
-        ['$set', '$push', '$pull'].forEach(op => { if (!Object.keys(update[op]).length) delete update[op]; });
+        // Очистка пустых операторов
+        ['$set', '$push', '$pull'].forEach(op => { 
+            if (!Object.keys(update[op]).length) delete update[op]; 
+        });
 
-        const result = Object.keys(update).length 
-            ? await Topic.findByIdAndUpdate(id, update, { new: true, runValidators: true }).populate('metadata.category', 'name')
-            : topic;
+        if (Object.keys(update).length === 0) {
+            return successHandler(res, 200, 'Изменений не обнаружено', topic);
+        }
 
-        await Log.create({
-            action: 'TOPIC_PATCHED',
-            user: req.user.id,
-            entityType: 'Topic',
+        // 6. Выполнение обновления в БД
+        const result = await Topic.findByIdAndUpdate(id, update, { new: true, runValidators: true })
+            .populate('metadata.category', 'name');
+
+        // 7. Логирование действия (TOPIC_UPDATE)
+        await logHandler({
+            action: ACTIONS_CONFIG.TOPICS.actions.UPDATE.key,
+            message: `Тема "${result.name || id}" обновлена. Детали: ${changeSummary.join(', ')}`,
+            userId,
             entityId: id,
-            details: { changes, name: result?.name || topic.name }
+            status: 'success'
         });
 
-        return res.status(200).json({ success: true, message: 'Тема обновлена', data: result });
+        return successHandler(res, 200, 'Тема успешно обновлена', result);
+
     } catch (error) {
-        return res.status(500).json({
-            success: false,
-            message: 'Ошибка сервера',
-            errors: [{ path: 'server', message: error.message }]
+        // Логируем системную ошибку (TOPIC_ERROR)
+        await logHandler({
+            action: ACTIONS_CONFIG.TOPICS.actions.SERVER_ERROR.key,
+            message: `Ошибка сервера при обновлении темы ${id}: ${error.message}`,
+            userId,
+            entityId: id,
+            status: 'error'
         });
+
+        return errorHandler(
+            res,
+            500,
+            'Ошибка сервера при обновлении темы',
+            [{ path: 'server', message: error.message }]
+        );
     }
 };

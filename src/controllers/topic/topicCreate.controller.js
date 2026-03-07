@@ -1,57 +1,67 @@
-const mongoose = require('mongoose');
 const Topic = require('../../models/topic');
-const Log = require('../../models/log');
 const { createTopicSchema } = require('../../schemas/topic.schema');
-const { processTopicFiles } = require('../../services/storage.service');
+
+// Подключаем утилиты и конфиг
+const successHandler = require('../../utils/successHandler');
+const errorHandler = require('../../utils/errorHandler');
+const logHandler = require('../../utils/logHandler');
+const { ACTIONS_CONFIG } = require('../../constants/actions');
 
 module.exports = async (req, res) => {
-    try {
-        const payload = { ...req.body };
-        ['metadata', 'files_metadata'].forEach(f => {
-            if (typeof payload[f] === 'string') try { payload[f] = JSON.parse(payload[f]); } catch (e) {}
-        });
+    const userId = req.user?.id;
 
-        const validation = await createTopicSchema.safeParseAsync({ body: payload });
+    try {
+        // 1. Валидация входных данных
+        const validation = await createTopicSchema.safeParseAsync({ body: req.body });
+        
         if (!validation.success) {
-            return res.status(400).json({
-                success: false,
-                message: 'Ошибка валидации',
-                errors: validation.error.issues.map(err => ({
+            // Экшена для ошибки валидации нет в ACTIONS_CONFIG — только возвращаем ответ
+            return errorHandler(
+                res,
+                400,
+                'Ошибка валидации',
+                validation.error.issues.map(err => ({
                     path: err.path.filter(p => p !== 'body').join('.'),
                     message: err.message
                 }))
-            });
+            );
         }
 
         const { body: data } = validation.data;
-        const id = new mongoose.Types.ObjectId();
 
-        if (req.files?.length > 0) {
-            const missing = req.files.find(f => !data.files_metadata?.[f.originalname]);
-            if (missing) return res.status(400).json({
-                success: false,
-                message: 'Ошибка файлов',
-                errors: [{ path: 'files_metadata', message: `Нет описания для: ${missing.originalname}` }]
-            });
-        }
+        // 2. Создание записи в БД
+        const result = await Topic.create({
+            ...data,
+            createdBy: userId,
+            status: 'review'
+        });
 
-        const files = req.files?.length ? await processTopicFiles(req.files, data.files_metadata, id) : [];
-        const result = await Topic.create({ ...data, _id: id, files, createdBy: req.user.id, status: 'review' });
-
-        await Log.create({
-            action: 'TOPIC_CREATED',
-            user: req.user.id,
-            entityType: 'Topic',
+        // 3. Логирование успешного действия (TOPIC_CREATE)
+        await logHandler({
+            action: ACTIONS_CONFIG.TOPICS.actions.CREATE.key,
+            message: `Создана новая тема: "${result.name}"`,
+            userId,
             entityId: result._id,
-            details: { name: result.name }
+            status: 'success'
         });
 
-        return res.status(201).json({ success: true, message: 'Тема создана', data: result });
+        // 4. Успешный ответ (статус 201 Created)
+        return successHandler(res, 201, 'Тема успешно создана и отправлена на проверку', result);
+
     } catch (error) {
-        return res.status(500).json({
-            success: false,
-            message: 'Ошибка сервера',
-            errors: [{ path: 'server', message: error.message }]
+        // Логируем системную ошибку темы (TOPIC_ERROR)
+        await logHandler({
+            action: ACTIONS_CONFIG.TOPICS.actions.SERVER_ERROR.key,
+            message: `Ошибка сервера при создании темы: ${error.message}`,
+            userId,
+            status: 'error'
         });
+
+        return errorHandler(
+            res,
+            500,
+            'Ошибка сервера при создании темы',
+            [{ path: 'server', message: error.message }]
+        );
     }
 };
