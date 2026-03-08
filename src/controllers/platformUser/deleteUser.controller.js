@@ -19,7 +19,7 @@ module.exports = async (req, res) => {
             return errorHandler(
                 res,
                 404, // Используем 404, так как superRefine вернет ошибку, если юзер не найден
-                'Пользователь не найден',
+                'Ошибка валидации',
                 validation.error.issues.map(err => ({
                     path: err.path.filter(p => p !== 'params').join('.'),
                     message: err.message

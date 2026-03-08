@@ -32,17 +32,6 @@ const loginIsUnique = (currentUserId = null) => async (login, ctx) => {
     }
 };
 
-const isNotSystem = (modelName) => async (id, ctx) => {
-    const doc = await mongoose.model(modelName).findById(id).select('isSystem');
-    if (doc && doc.isSystem) {
-        ctx.addIssue({
-            code: 'custom',
-            message: `Системного пользователя нельзя изменять или удалять`,
-            path: ['id'] // указываем, что проблема в ID
-        });
-    }
-};
-
 // --- Схемы для контроллеров ---
 
 /**
@@ -71,22 +60,37 @@ const createUserSchema = z.object({
  */
 const updateUserSchema = z.object({
     params: z.object({
-        id: objectId
-            .pipe(z.string().superRefine(dbExists('User')))
-            .pipe(z.string().superRefine(isNotSystem('User')))
+        id: objectId // Просто проверяем формат ID
     }),
     body: z.object({
         firstName: z.string().trim().min(1).optional(),
         lastName: z.string().trim().min(1).optional(),
         login: z.string().trim().min(3).transform(val => val.toLowerCase()).optional(),
         email: z.string().email().lowercase().optional(),
-        password: z.string().min(10, "Пароль должен быть не менее 10 символов").optional(),
-        role: objectId.pipe(z.string().superRefine(dbExists('Role'))).optional(),
+        password: z.string().min(10).optional(),
+        role: objectId.pipe(z.string().superRefine(dbExists('Role'))).optional(), // Проверка, что новая роль существует
         photoUrl: z.string().url().optional().or(z.literal('')),
         status: z.enum(['active', 'blocked']).optional()
     })
 }).superRefine(async (data, ctx) => {
-    // Если в теле запроса есть логин, проверяем его уникальность с учетом ID из параметров
+    // 1. Получаем данные пользователя ОДНИМ запросом
+    const user = await mongoose.model('User').findById(data.params.id).select('isSystem');
+
+    if (!user) {
+        ctx.addIssue({ code: 'custom', path: ['params', 'id'], message: 'Пользователь не найден' });
+        return;
+    }
+
+    // 2. БИЗНЕС-ЛОГИКА: Если системный, запрещаем менять роль
+    if (user.isSystem && data.body.role) {
+        ctx.addIssue({
+            code: 'custom',
+            path: ['body', 'role'],
+            message: 'У системного пользователя нельзя изменять роль'
+        });
+    }
+
+    // 3. Проверка уникальности логина (если он пришел в body)
     if (data.body.login) {
         await loginIsUnique(data.params.id)(data.body.login, ctx);
     }
@@ -113,9 +117,20 @@ const getOneUserSchema = z.object({
 
 const deleteUserSchema = z.object({
     params: z.object({
-        id: objectId
-            .pipe(z.string().superRefine(dbExists('User')))
-            .pipe(z.string().superRefine(isNotSystem('User')))
+        id: objectId.pipe(z.string().superRefine(async (id, ctx) => {
+            const user = await mongoose.model('User').findById(id).select('isSystem');
+            if (!user) {
+                ctx.addIssue({ code: 'custom', path: ['id'], message: 'Пользователь не найден' });
+                return;
+            }
+            if (user.isSystem) {
+                ctx.addIssue({
+                    code: 'custom',
+                    path: ['id'], // явно указываем, что проблема в ID
+                    message: 'Системного пользователя нельзя удалять'
+                });
+            }
+        }))
     })
 });
 
