@@ -98,6 +98,10 @@ npm run dev
 
 ---
 
+[![Postman](https://img.shields.io/badge/Postman-FF6C37?style=for-the-badge&logo=postman&logoColor=white)](https://www.postman.com/rocketmind/rocketmind/documentation/33378290-e357ac2b-9202-4baf-8bb6-3f697af3f79f)
+
+---
+
 ## 👥 Роли пользователей по умолчанию
 
 | Роль | Описание |
