@@ -44,7 +44,7 @@ const createUserSchema = z.object({
             .max(30, "Логин должен быть не более 30 символов")
             .transform(val => val.toLowerCase())
             .superRefine(loginIsUnique()),
-        email: z.string().email("Некорректный email").transform(val => val.toLowerCase()).optional(),
+        email: z.string("Поле email обязательно для заполнения").email("Некорректный email").transform(val => val.toLowerCase()),
         password: z.string("Пароль обязателен").min(10, "Пароль должен быть не менее 10 символов").max(100, "Пароль должен быть не более 100 символов"),
         role: objectId.pipe(z.string("Роль обязательна").superRefine(dbExists('Role'))),
         photoUrl: z.string().url("Некорректная ссылка на фото").optional().or(z.literal('')),

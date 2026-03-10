@@ -1,6 +1,5 @@
 const express = require('express');
 const router = express.Router();
-const multer = require('multer');
 
 // Импортируем фасад контроллеров пользователей
 const userController = require('../controllers/platformUser/index');
@@ -8,12 +7,10 @@ const userController = require('../controllers/platformUser/index');
 // Middleware
 const { auth } = require('../middlewares/auth.middleware');
 const checkPermission = require('../middlewares/permission.middleware');
+const validate = require('../middlewares/validate.middleware');
 
-// Конфигурация Multer для аватарок
-const upload = multer({ 
-    storage: multer.memoryStorage(),
-    limits: { fileSize: 5 * 1024 * 1024 } // Ограничение 5MB для фото
-});
+// Schemas
+const { getAllUsersSchema, getOneUserSchema, deleteUserSchema, createUserSchema, updateUserSchema} = require('../schemas/user.schema')
 
 /**
  * 1. Получение списка всех сотрудников
@@ -23,6 +20,7 @@ router.get(
     '/',
     auth,
     checkPermission('platformUsers.read'),
+    validate(getAllUsersSchema),
     userController.getAllUsers
 );
 
@@ -34,6 +32,7 @@ router.get(
     '/:id',
     auth,
     checkPermission('platformUsers.read'),
+    validate(getOneUserSchema),
     userController.getOneUser
 );
 
@@ -45,7 +44,7 @@ router.post(
     '/',
     auth,
     checkPermission('platformUsers.create'),
-    upload.single('photoUrl'), // Принимаем один файл (аватар)
+    validate(createUserSchema),
     userController.createUser
 );
 
@@ -57,7 +56,7 @@ router.patch(
     '/:id',
     auth,
     checkPermission('platformUsers.update'),
-    upload.single('photo'), // Позволяем обновить фото
+    validate(updateUserSchema),
     userController.updateUser
 );
 
@@ -69,6 +68,7 @@ router.delete(
     '/:id',
     auth,
     checkPermission('platformUsers.delete'),
+    validate(deleteUserSchema),
     userController.deleteUser
 );
 

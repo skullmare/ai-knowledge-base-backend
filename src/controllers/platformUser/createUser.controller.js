@@ -1,8 +1,5 @@
 const User = require('../../models/platformUser');
-const { createUserSchema } = require('../../schemas/user.schema');
 const { hashPassword } = require('../../utils/passwordHandler');
-
-// Подключаем утилиты и конфиг
 const successHandler = require('../../utils/successHandler');
 const errorHandler = require('../../utils/errorHandler');
 const logHandler = require('../../utils/logHandler');
@@ -10,35 +7,16 @@ const { ACTIONS_CONFIG } = require('../../constants/actions');
 
 module.exports = async (req, res) => {
     const currentUserId = req.user?.id;
+    const data = req.validatedData.body;
 
     try {
-        // 1. Валидация (включая проверку уникальности логина в БД)
-        const validation = await createUserSchema.safeParseAsync({ body: req.body });
-        
-        if (!validation.success) {
-            return errorHandler(
-                res,
-                400,
-                'Ошибка валидации',
-                validation.error.issues.map(err => ({
-                    path: err.path.filter(p => p !== 'body').join('.'),
-                    message: err.message
-                }))
-            );
-        }
-
-        const { body: data } = validation.data;
-
-        // 2. Хеширование пароля через утилиту
         const hashedPassword = await hashPassword(data.password);
 
-        // 3. Создание записи
         const newUser = await User.create({
             ...data,
             password: hashedPassword
         });
 
-        // 4. Логирование (PLATFORM_USER_CREATE)
         await logHandler({
             action: ACTIONS_CONFIG.PLATFORM_USERS.actions.CREATE.key,
             message: `Создан новый сотрудник: ${newUser.login} (${newUser.firstName} ${newUser.lastName})`,
@@ -47,7 +25,6 @@ module.exports = async (req, res) => {
             status: 'success'
         });
 
-        // Подготовка данных для ответа
         const responseData = newUser.toObject();
         delete responseData.password;
 
