@@ -2,6 +2,7 @@ const errorHandler = require("../utils/errorHandler");
 
 const validate = (schema, errorMessage = 'Ошибка валидации') => async (req, res, next) => {
     const validation = await schema.safeParseAsync({
+        userId: req.user.id,
         body: req.body,
         params: req.params,
         query: req.query
