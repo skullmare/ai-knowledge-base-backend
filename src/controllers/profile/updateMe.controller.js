@@ -1,5 +1,4 @@
 const User = require('../../models/platformUser');
-const { updateMeSchema } = require('../../schemas/profile.schema');
 const { deleteSingleFileFromS3 } = require('../../services/storage.service');
 const successHandler = require('../../utils/successHandler');
 const errorHandler = require('../../utils/errorHandler');
