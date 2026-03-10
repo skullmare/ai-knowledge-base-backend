@@ -1,5 +1,4 @@
 const TopicCategory = require('../../models/topicCategory');
-const { updateCategorySchema } = require('../../schemas/topicCategory.schema');
 const successHandler = require('../../utils/successHandler');
 const errorHandler = require('../../utils/errorHandler');
 const logHandler = require('../../utils/logHandler');
