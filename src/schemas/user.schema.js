@@ -36,15 +36,16 @@ const loginIsUnique = (currentUserId = null) => async (login, ctx) => {
 
 const createUserSchema = z.object({
     body: z.object({
-        firstName: z.string("Имя обязательно").trim().min(1, "Поле имени не может быть пустым"),
-        lastName: z.string("Фамилия обязательна").trim().min(1, "Поле фамилия не может быть пустым"),
+        firstName: z.string("Имя обязательно").trim().min(1, "Поле имени не может быть пустым").max(100, "Максимальная длинна имени 100 символов"),
+        lastName: z.string("Фамилия обязательна").trim().min(1, "Поле фамилия не может быть пустым").max(100, "Максимальная длинна фамилии 100 символов"),
         login: z.string("Логин обязателен")
             .trim()
             .min(3, "Логин должен быть не менее 3 символов")
+            .max(30, "Логин должен быть не более 30 символов")
             .transform(val => val.toLowerCase())
             .superRefine(loginIsUnique()),
         email: z.string().email("Некорректный email").transform(val => val.toLowerCase()).optional(),
-        password: z.string("Пароль обязателен").min(10, "Пароль должен быть не менее 10 символов"),
+        password: z.string("Пароль обязателен").min(10, "Пароль должен быть не менее 10 символов").max(100, "Пароль должен быть не более 100 символов"),
         role: objectId.pipe(z.string("Роль обязательна").superRefine(dbExists('Role'))),
         photoUrl: z.string().url("Некорректная ссылка на фото").optional().or(z.literal('')),
         status: z.enum(['active', 'blocked'], "Недопустимый статус. Доступны: active, blocked").default('active')
@@ -56,11 +57,11 @@ const updateUserSchema = z.object({
         id: objectId
     }),
     body: z.object({
-        firstName: z.string().trim().min(1, "Поле имени не может быть пустым").optional(),
-        lastName: z.string().trim().min(1, "Поле фамилия не может быть пустым").optional(),
-        login: z.string().trim().min(3, "Логин должен быть не менее 3 символов").transform(val => val.toLowerCase()).optional(),
+        firstName: z.string().trim().min(1, "Поле имени не может быть пустым").max(100, "Максимальная длинна имени 100 символов").optional(),
+        lastName: z.string().trim().min(1, "Поле фамилия не может быть пустым").max(100, "Максимальная длинна фамилии 100 символов").optional(),
+        login: z.string().trim().min(3, "Логин должен быть не менее 3 символов").max(30, "Логин должен быть не более 30 символов").transform(val => val.toLowerCase()).optional(),
         email: z.string().email().transform(val => val.toLowerCase()).optional(),
-        password: z.string().min(10, "Пароль должен быть не менее 10 символов").optional(),
+        password: z.string().min(10, "Пароль должен быть не менее 10 символов").max(100, "Пароль должен быть не более 100 символов").optional(),
         role: objectId.pipe(z.string().superRefine(dbExists('Role'))).optional(), // Проверка, что новая роль существует
         photoUrl: z.string().url("Некорректная ссылка на фото").optional().or(z.literal('')),
         status: z.enum(['active', 'blocked'], "Недопустимый статус. Доступны: active, blocked").optional()

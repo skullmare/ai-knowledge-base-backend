@@ -6,7 +6,8 @@ const { z } = require('zod');
 /**
  * Валидация ObjectId
  */
-const objectId = z.string()
+const objectId = z
+    .string()
     .trim()
     .refine(v => mongoose.Types.ObjectId.isValid(v), "Некорректный ID роли агента");
 
@@ -36,11 +37,15 @@ const agentRoleNameIsUnique = (currentRoleId = null) => async (name, ctx) => {
  */
 const createAgentRoleSchema = z.object({
     body: z.object({
-        name: z.string({ required_error: "Название роли обязательно" })
+        name: z.string("Название роли обязательно")
             .trim()
-            .min(2, "Название должно быть не менее 2 символов")
+            .min(1, "Название роли не может быть пустым")
+            .max(100, "Название роли не может быть более 100 символов")
             .superRefine(agentRoleNameIsUnique()),
-        description: z.string().trim().optional()
+        description: z.string("Описание роли обязательно")
+            .trim()
+            .min(1, "Описание роли не может быть пустым")
+            .max(1000, "Описание роли не может быть более 1000 символов")
     })
 });
 
@@ -52,14 +57,22 @@ const updateAgentRoleSchema = z.object({
         id: objectId
     }),
     body: z.object({
-        name: z.string().trim().min(2, "Название роли не может быть пустым").optional(),
-        description: z.string().trim().optional()
+        name: z.string()
+            .trim()
+            .min(1, "Название роли не может быть пустым")
+            .max(100, "Название роли не может быть более 100 символов")
+            .optional(),
+        description: z.string()
+            .trim()
+            .min(1, "Описание роли не может быть пустым")
+            .max(1000, "Описание роли не может быть более 1000 символов")
+            .optional()
     })
 }).superRefine(async (data, ctx) => {
     // 1. Проверяем существование записи
     const role = await mongoose.model('AgentRole').findById(data.params.id);
     if (!role) {
-        ctx.addIssue({ code: 'custom', path: ['params', 'id'], message: 'Роль пользователей агента не найдена' });
+        ctx.addIssue({ code: 'custom', path: ['params', 'id'], message: 'Роль для пользователей агента не найдена' });
         return;
     }
 
@@ -80,13 +93,11 @@ const deleteAgentRoleSchema = z.object({
     const role = await mongoose.model('AgentRole').findById(data.params.id);
     
     if (!role) {
-        ctx.addIssue({ code: 'custom', path: ['params', 'id'], message: 'Роль пользователей агента не найдена' });
+        ctx.addIssue({ code: 'custom', path: ['params', 'id'], message: 'Роль для пользователей агента не найдена' });
         return;
     }
 
-    // Логика из pre-hook: проверка связей в коллекции Topic
     const Topic = mongoose.model('Topic');
-    // В условии pre-hook вы использовали accessibleByRoles
     const count = await Topic.countDocuments({ accessibleByRoles: data.params.id });
 
     if (count > 0) {
@@ -110,8 +121,8 @@ const getOneAgentRoleSchema = z.object({
 const getAllAgentRolesSchema = z.object({
     query: z.object({
         search: z.string().trim().optional(),
-        page: z.string().regex(/^\d+$/).transform(Number).default("1"),
-        limit: z.string().regex(/^\d+$/).transform(Number).default("10")
+        page: z.string().regex(/^\d+$/, "Номер страницы должен быть числом").transform(Number).default("1"),
+        limit: z.string().regex(/^\d+$/, "Лимит должен быть числом").transform(Number).default("10")
     })
 });
 

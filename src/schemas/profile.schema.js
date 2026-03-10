@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 const { z } = require('zod');
 
-// --- Вспомогательные функции (могут быть вынесены в общий файл utils/zod.utils.js) ---
+// --- Вспомогательные функции ---
 
 const objectId = z.string()
     .trim()

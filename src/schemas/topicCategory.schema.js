@@ -39,9 +39,13 @@ const createCategorySchema = z.object({
         name: z.string("Название обязательно")
             .trim()
             .min(1, "Название не может быть пустым")
-            .max(50, "Название слишком длинное")
+            .max(50, "Максимальная длина названия 50 символов")
             .superRefine(categoryNameIsUnique()),
-        description: z.string().trim().min(1, "Описание не может быть пустым").optional()
+        description: z.string()
+            .trim()
+            .min(1, "Описание не может быть пустым")
+            .max(300, "Максимальная длина описания 300 символов")
+            .optional()
     })
 });
 
@@ -53,8 +57,8 @@ const updateCategorySchema = z.object({
         id: objectId
     }),
     body: z.object({
-        name: z.string().trim().min(1, "Название не может быть пустым").optional(),
-        description: z.string().trim().min(1, "Описание не может быть пустым").optional()
+        name: z.string().trim().min(1, "Название не может быть пустым").max(50, "Максимальная длина названия 50 символов").optional(),
+        description: z.string().trim().min(1, "Описание не может быть пустым").max(300, "Максимальная длина описания 300 символов").optional()
     })
 }).superRefine(async (data, ctx) => {
     const category = await mongoose.model('TopicCategory').findById(data.params.id);

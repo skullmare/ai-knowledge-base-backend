@@ -3,14 +3,14 @@ const User = require('../models/platformUser');
 
 const changePasswordSchema = z.object({
     oldPassword: z
-        .string()
+        .string('Текущий пароль обязателен для заполнения')
         .min(1, 'Введите текущий пароль'),
     newPassword: z
-        .string()
-        .min(10, 'Новый пароль должен содержать минимум 10 символов'),
+        .string('Новый пароль обязателен для заполнения')
+        .min(10, 'Новый пароль должен содержать минимум 10 символов')
+        .max(100, 'Новый пароль должен быть не более 100 символов'),
     confirmPassword: z
-        .string()
-        .min(10, 'Подтвердите новый пароль')
+        .string('Повтор нового пароля обязателен для заполнения')
 })
 .refine((data) => data.newPassword === data.confirmPassword, {
     message: "Пароли не совпадают",
@@ -27,7 +27,7 @@ const changePasswordSchema = z.object({
  */
 const forgotPasswordSchema = z.object({
     email: z
-        .string()
+        .string('Поле email обязателено для заполнения')
         .trim()
         .lowercase()
         .email('Введите корректный email адрес')
@@ -48,11 +48,11 @@ const forgotPasswordSchema = z.object({
  */
 const resetPasswordSchema = z.object({
     password: z
-        .string()
-        .min(10, 'Новый пароль должен содержать минимум 10 символов'),
+        .string('Новый пароль обязателен для заполнения')
+        .min(10, 'Новый пароль должен содержать минимум 10 символов')
+        .max(100, 'Новый пароль должен быть не более 100 символов'),
     confirmPassword: z
-        .string()
-        .min(10, 'Подтвердите пароль'),
+        .string('Повтор нового пароля обязателен для заполнения')
 })
 .refine((data) => data.password === data.confirmPassword, {
     message: "Пароли не совпадают",
