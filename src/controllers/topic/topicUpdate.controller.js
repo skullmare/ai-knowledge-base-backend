@@ -1,8 +1,6 @@
 const Topic = require('../../models/topic');
 const { deleteMultipleFilesFromS3 } = require('../../services/storage.service');
-const { patchTopicSchema } = require('../../schemas/topic.schema');
 const { deleteTopicFromQdrant } = require('../../services/vector.service');
-// Утилиты и конфиг
 const successHandler = require('../../utils/successHandler');
 const errorHandler = require('../../utils/errorHandler');
 const logHandler = require('../../utils/logHandler');
