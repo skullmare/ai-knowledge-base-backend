@@ -1,6 +1,7 @@
 const express = require('express');
 const cookieParser = require('cookie-parser'); 
 const sendError = require('./utils/errorHandler');
+const logger = require('./utils/logger');
 
 const userRoutes = require('./routes/platformUsers.routes');
 const authRoutes = require('./routes/auth.routes');
@@ -33,14 +34,10 @@ app.use((req, res) => {
     sendError(res, 404, `Маршрут ${req.method} ${req.url} не найден`);
 });
 
-app.use((err, req, res, next) => {
-    console.error('Ошибка:', err);
-    
+app.use((err, req, res, next) => {    
     const status = err.status || 500;
     const message = err.message || 'Внутренняя ошибка сервера';
-    
     const errors = err.errors || []; 
-
     sendError(res, status, message, errors);
 });
 

@@ -1,4 +1,5 @@
 const Log = require('../models/log');
+const logger = require('../utils/logger');
 const { ACTION_TO_ENTITY_MAP } = require('../constants/actions');
 
 module.exports = async ({ action, message, userId, entityId, status = 'success' }) => {
@@ -14,6 +15,6 @@ module.exports = async ({ action, message, userId, entityId, status = 'success' 
             status
         });
     } catch (error) {
-        console.error(`[LOG_ERROR]: ${action} | Msg: ${message} | Error: ${error.message}`);
+        logger.error(`Ошибка логирования в БД: ${error.message}`);
     }
 };

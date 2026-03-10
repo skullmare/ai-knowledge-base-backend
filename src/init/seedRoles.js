@@ -1,5 +1,6 @@
 const Role = require('../models/platformRole'); 
 const { ALL_PERMISSIONS } = require('../constants/permissions');
+const logger = require('../utils/logger');
 
 const seedRoles = async () => {
     try {
@@ -18,9 +19,9 @@ const seedRoles = async () => {
             }
         );
         
-        console.log('✅ Инициализация системных ролей для управления платформой успешно завершена');
+        logger.success('Инициализация системных ролей для управления платформой успешно завершена');
     } catch (error) {
-        console.error('❌ Ошибка при инициализации системных ролей для управления платформой:', error.message);
+        logger.error('Ошибка при инициализации системных ролей для управления платформой', details = error.message);
     }
 };
 

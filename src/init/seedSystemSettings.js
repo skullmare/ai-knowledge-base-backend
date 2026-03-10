@@ -1,4 +1,5 @@
 const SystemSetting = require('../models/systemSetting');
+const logger = require('../utils/logger');
 
 const defaultSettings = [
     {
@@ -29,9 +30,9 @@ const seedSystemSettings = async () => {
             );
         }
 
-        console.log('✅ Инициализация системных настроек успешно завершена');
+        logger.success('Инициализация системных настроек успешно завершена');
     } catch (error) {
-        console.error('❌ Ошибка при сидировании настроек:', error);
+        logger.error('Ошибка при сидировании настроек', details = error.message || error);
         throw error;
     }
 };

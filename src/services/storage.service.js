@@ -1,4 +1,5 @@
-const { PutObjectCommand, DeleteObjectCommand, ListObjectsV2Command, DeleteObjectsCommand } = require("@aws-sdk/client-s3");
+const { PutObjectCommand, DeleteObjectCommand, DeleteObjectsCommand } = require("@aws-sdk/client-s3");
+const logger = require('../utils/logger');
 const path = require('path');
 const { s3Client } = require('../../config/yandexcloud');
 const crypto = require('crypto');
@@ -41,7 +42,7 @@ async function deleteSingleFileFromS3(fileUrl) {
     try {
         await s3Client.send(new DeleteObjectCommand({ Bucket: BUCKET, Key: key }));
     } catch (e) {
-        console.error(`[S3-Delete-Error]: ${fileUrl}`, e.message);
+        logger.error(`[S3-Bulk-Delete-Error]: ${e.message}`);
     }
 }
 
@@ -63,7 +64,7 @@ async function deleteMultipleFilesFromS3(urls) {
             }
         }));
     } catch (e) {
-        console.error(`[S3-Bulk-Delete-Error]:`, e.message);
+        logger.error(`[S3-Bulk-Delete-Error]: ${e.message}`);
     }
 }
 

@@ -2,6 +2,7 @@ require('dotenv').config();
 const User = require('../models/platformUser');
 const Role = require('../models/platformRole');
 const { hashPassword } = require('../utils/passwordHandler');
+const logger = require('../utils/logger');
 
 const login = process.env.LOGIN_SUPER_ADMIN;
 const password = process.env.PASSWORD_SUPER_ADMIN;
@@ -11,14 +12,14 @@ const seedSuperAdmin = async () => {
         const adminRole = await Role.findOne({ name: 'Системный администратор' });
 
         if (!adminRole) {
-            console.error('❌ Ошибка: Роль "Системный администратор" не найдена. Сначала запустите seedRoles!');
+            logger.error('Ошибка: Роль "Системный администратор" не найдена. Сначала запустите seedRoles!');
             return;
         }
 
         const adminExists = await User.findOne({ login: login });
 
         if (adminExists) {
-            console.log('ℹ️ Аккаунт системного администратора уже существует, пропуск создания');
+            logger.success('Аккаунт системного администратора уже существует, пропуск создания');
             return;
         }
 
@@ -36,10 +37,10 @@ const seedSuperAdmin = async () => {
         });
 
         await superAdmin.save();
-        console.log(`✅ Инициализация аккаунта системного администратора успешно завершена (Логин: ${login} / Пароль: ${password})`);
+        logger.success(`Инициализация аккаунта системного администратора успешно завершена (Логин: ${login} / Пароль: ${password})`);
 
     } catch (error) {
-        console.error('❌ Ошибка при инициализации аккаунта системного администратора:', error.message);
+        logger.error('Ошибка при инициализации аккаунта системного администратора', details = error.message);
     }
 };
 

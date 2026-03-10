@@ -4,6 +4,7 @@ const errorHandler = require('../../utils/errorHandler');
 const logHandler = require('../../utils/logHandler');
 const { ACTIONS_CONFIG } = require('../../constants/actions');
 const User = require('../../models/platformUser');
+const logger = require('../../utils/logger');
 
 module.exports = async (req, res) => {
     const token = req.cookies.refreshToken;
@@ -32,7 +33,7 @@ module.exports = async (req, res) => {
             lastLogin: new Date()
         });
     } catch (error) {
-        console.error('Ошибка при обновлении lastLogin:', error);
+        logger.error('Ошибка при обновлении lastLogin', details = error.message);
     }
 
     const { accessToken, refreshToken } = authService.generateTokens({

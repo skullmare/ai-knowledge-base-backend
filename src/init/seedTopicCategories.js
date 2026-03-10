@@ -1,4 +1,5 @@
 const TopicCategory = require('../models/topicCategory');
+const logger = require('../utils/logger');
 
 const defaultCategories = [
     {
@@ -37,9 +38,9 @@ const seedTopicCategories = async () => {
             );
         }
 
-        console.log('✅ Инициализация категорий знаний успешно завершена');
+        logger.success('Инициализация категорий знаний успешно завершена');
     } catch (error) {
-        console.error('❌ Ошибка при сидировании категорий знаний:', error);
+        logger.error('Ошибка при сидировании категорий знаний', details = error.message || error);
         throw error;
     }
 };

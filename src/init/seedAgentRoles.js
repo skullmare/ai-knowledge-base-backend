@@ -1,4 +1,5 @@
 const AgentRole = require('../models/agentRole');
+const logger = require('../utils/logger');
 
 const seedAgentRoles = async () => {
     const roles = [
@@ -17,9 +18,9 @@ const seedAgentRoles = async () => {
                 { upsert: true, returnDocument: 'after', runValidators: true }
             );
         }
-        console.log('✅ Инициализация базовых ролей для доступа к ИИ агенту успешно завершена');
+        logger.success('Инициализация базовых ролей для доступа к ИИ агенту успешно завершена');
     } catch (error) {
-        console.error('❌ Ошибка при инициализации базовых ролей для доступа к ИИ агенту:', error);
+        logger.error('Ошибка при инициализации базовых ролей для доступа к ИИ агенту', details = error.message || error);
     }
 };
 

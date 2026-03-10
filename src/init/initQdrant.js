@@ -1,4 +1,5 @@
 const { qdrantClient } = require('../../config/qdrant');
+const logger = require('../utils/logger');
 
 async function initQdrant() {
     const collectionName = "knowledge_base";
@@ -30,12 +31,12 @@ async function initQdrant() {
                 field_schema: "keyword"
             });
 
-            console.log(`✅ Инициализация коллекции ${collectionName} и всех индексов завершена`);
+            logger.success(`Инициализация коллекции ${collectionName} и всех индексов завершена`);
         } else {
-            console.log(`ℹ️ Коллекция ${collectionName} уже существует`);
+            logger.success(`Коллекция ${collectionName} уже существует`);
         }
     } catch (error) {
-        console.error("❌ Ошибка при инициализации Qdrant:", error);
+        logger.error("Ошибка при инициализации Qdrant", details = error.message || error);
     }
 }
 

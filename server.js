@@ -1,4 +1,3 @@
-
 require('dotenv').config();
 const app = require('./src/app');
 const { connectDB, disconnectDB } = require('./config/mongo');
@@ -8,6 +7,7 @@ const { seedSuperAdmin } = require('./src/init/seedSuperAdmin');
 const { seedSystemSettings } = require('./src/init/seedSystemSettings');
 const { seedTopicCategories } = require('./src/init/seedTopicCategories');
 const { initQdrant } = require('./src/init/initQdrant');
+const logger = require('./src/utils/logger');
 
 const PORT = process.env.PORT || 3000;
 let server;
@@ -22,27 +22,26 @@ const startServer = async () => {
     await seedSuperAdmin();
     await initQdrant();
     server = app.listen(PORT, () => {
-      console.log(`🚀 Сервер запущен на порту ${PORT}`);
-      console.log(`🔗 http://localhost:${PORT}`);
+      logger.success(`Сервер запущен на порту ${PORT} | http://localhost:${PORT}`);
     });
   } catch (error) {
-    console.error('❌ Ошибка при запуске:', error);
+    logger.error('Ошибка при запуске', details = error.message || error);
     process.exit(1);
   }
 };
 
 const gracefulShutdown = async (signal) => {
-  console.log(`\n📥 Получен сигнал ${signal}`);
+  logger.error(`Получен сигнал ${signal}`);
 
   if (server) {
     server.close(() => {
-      console.log('🚫 Сервер остановлен');
+      logger.error('Сервер остановлен');
     });
   }
 
   await disconnectDB();
 
-  console.log('✅ Приложение остановлено');
+  logger.success('Приложение остановлено');
   process.exit(0);
 };
 
