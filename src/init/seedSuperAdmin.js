@@ -1,14 +1,13 @@
-require('dotenv').config(); // Загружаем переменные окружения
+require('dotenv').config();
 const User = require('../models/platformUser');
 const Role = require('../models/platformRole');
-const { hashPassword } = require('../utils/passwordHandler'); // Используем нашу новую утилиту
+const { hashPassword } = require('../utils/passwordHandler');
 
 const login = process.env.LOGIN_SUPER_ADMIN;
 const password = process.env.PASSWORD_SUPER_ADMIN;
 
 const seedSuperAdmin = async () => {
     try {
-        // 1. Находим системную роль
         const adminRole = await Role.findOne({ name: 'Системный администратор' });
 
         if (!adminRole) {
@@ -16,7 +15,6 @@ const seedSuperAdmin = async () => {
             return;
         }
 
-        // 2. Проверяем, существует ли уже админ
         const adminExists = await User.findOne({ login: login });
 
         if (adminExists) {
@@ -24,17 +22,15 @@ const seedSuperAdmin = async () => {
             return;
         }
 
-        // 3. Хешируем пароль через утилиту
         const hashedPassword = await hashPassword(password);
 
-        // 4. Создаем пользователя
         const superAdmin = new User({
             firstName: 'System',
             lastName: 'Administrator',
-            login: login, // Используем значение из env
+            login: login,
             email: '',
             password: hashedPassword,
-            role: adminRole._id, // Привязываем ID роли
+            role: adminRole._id,
             status: 'active',
             isSystem: true
         });

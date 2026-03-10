@@ -17,17 +17,13 @@ const defaultSettings = [
 
 const seedSystemSettings = async () => {
     try {
-        // Используем Promise.all для параллельной проверки, 
-        // но можно и обычный цикл, если данных мало.
         for (const setting of defaultSettings) {
-            // Используем upsert: если нет — создаст, если есть — НЕ изменит (setDefaultsOnInsert)
-            // Это самый надежный способ избежать дублей в Mongo
             await SystemSetting.findOneAndUpdate(
                 { key: setting.key },
                 { $setOnInsert: setting },
                 {
                     upsert: true,
-                    returnDocument: 'after', // Исправлено здесь
+                    returnDocument: 'after',
                     setDefaultsOnInsert: true
                 }
             );
@@ -36,7 +32,7 @@ const seedSystemSettings = async () => {
         console.log('✅ Инициализация системных настроек успешно завершена');
     } catch (error) {
         console.error('❌ Ошибка при сидировании настроек:', error);
-        throw error; // Пробрасываем ошибку выше в startServer
+        throw error;
     }
 };
 

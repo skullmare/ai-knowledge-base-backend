@@ -15,19 +15,16 @@ async function initQdrant() {
                 }
             });
 
-            // 1. Индекс для категорий (нужен для фильтрации в поиске)
             await qdrantClient.createPayloadIndex(collectionName, {
                 field_name: "metadata.category",
                 field_schema: "keyword"
             });
 
-            // 2. Индекс для ролей (КРИТИЧЕСКИ ВАЖЕН для безопасности/RBAC)
             await qdrantClient.createPayloadIndex(collectionName, {
                 field_name: "metadata.accessibleByRoles",
                 field_schema: "keyword"
             });
 
-            // 3. Индекс для ID топика (КРИТИЧЕСКИ ВАЖЕН для быстрого удаления/обновления)
             await qdrantClient.createPayloadIndex(collectionName, {
                 field_name: "metadata.topicId",
                 field_schema: "keyword"
@@ -35,8 +32,6 @@ async function initQdrant() {
 
             console.log(`✅ Инициализация коллекции ${collectionName} и всех индексов завершена`);
         } else {
-            // Даже если коллекция существует, полезно убедиться, что индекс для topicId есть.
-            // Но для простоты пока оставим так.
             console.log(`ℹ️ Коллекция ${collectionName} уже существует`);
         }
     } catch (error) {

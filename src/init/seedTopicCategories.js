@@ -23,9 +23,6 @@ const defaultCategories = [
     }
 ];
 
-/**
- * Инициализация базовых категорий знаний
- */
 const seedTopicCategories = async () => {
     try {
         for (const category of defaultCategories) {
@@ -34,7 +31,6 @@ const seedTopicCategories = async () => {
                 { $setOnInsert: category },
                 {
                     upsert: true,
-                    // ЗАМЕНЯЕМ new: true НА returnDocument: 'after'
                     returnDocument: 'after', 
                     setDefaultsOnInsert: true
                 }
