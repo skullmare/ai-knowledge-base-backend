@@ -28,11 +28,10 @@ const createCategorySchema = z.object({
             .min(1, "Название не может быть пустым")
             .max(50, "Максимальная длина названия 50 символов")
             .superRefine(categoryNameIsUnique()),
-        description: z.string()
+        description: z.string("Описание обязательно")
             .trim()
             .min(1, "Описание не может быть пустым")
             .max(300, "Максимальная длина описания 300 символов")
-            .optional()
     })
 });
 

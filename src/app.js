@@ -1,7 +1,6 @@
 const express = require('express');
 const cookieParser = require('cookie-parser'); 
 const sendError = require('./utils/errorHandler');
-const logger = require('./utils/logger');
 
 const userRoutes = require('./routes/platformUsers.routes');
 const authRoutes = require('./routes/auth.routes');
