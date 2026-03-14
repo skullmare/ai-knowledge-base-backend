@@ -38,6 +38,10 @@ const hocuspocus = new Hocuspocus();
 const hocuspocusConfigured = hocuspocus.configure({
     debounce: 3000,
 
+    async onConnect({ context }) {
+        logger.info(`[WS] Подключение установлено. UserId: ${context.user?.id}`);
+    },
+
     async onAuthenticate({ token, context }) {
         if (!token) throw new Error('Токен не предоставлен');
         const userData = validateAccessToken(token);
@@ -47,8 +51,14 @@ const hocuspocusConfigured = hocuspocus.configure({
     },
 
     async onLoadDocument({ documentName }) {
-        const topic = await Topic.findById(documentName).select('+collaborationData');
-        return topic?.collaborationData || null;
+        try {
+            const topic = await Topic.findById(documentName).select('+collaborationData');
+            if (!topic) throw new Error('Документ не найден');
+            return topic.collaborationData || null;
+        } catch (error) {
+            logger.error('[WS] onLoadDocument ошибка:', null, error);
+            throw error;
+        }
     },
 
     async onStoreDocument({ documentName, state, document, context }) {
@@ -65,10 +75,14 @@ const hocuspocusConfigured = hocuspocus.configure({
                 updatedBy: context.user.id,
             });
 
-            logger.success(`[WS] документ сохранён: ${documentName}`);
+            logger.success(`[WS] Документ сохранён: ${documentName}`);
         } catch (error) {
-            logger.error('[Collaboration-Error]', 500, error);
+            logger.error('[WS] onStoreDocument ошибка', null, error);
         }
+    },
+
+    async onDisconnect({ context }) {
+        logger.success(`[WS] подключение разорвано. UserId: ${context.user?.id}`);
     },
 });
 
