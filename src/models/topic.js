@@ -8,8 +8,17 @@ const topicSchema = new mongoose.Schema({
     index: true
   },
   content: {
+    type: mongoose.Schema.Types.Mixed,
+    required: true,
+    default: []
+  },
+  plainTextContent: {
     type: String,
-    required: true
+    select: false
+  },
+  collaborationData: {
+    type: Buffer,
+    select: false
   },
   status: {
     type: String,
@@ -17,20 +26,14 @@ const topicSchema = new mongoose.Schema({
     default: 'review',
     index: true
   },
-  files: [{
-    name: { type: String, trim: true, required: true },
-    description: { type: String, trim: true, required: true },
-    url: { type: String, required: true },
-    fileType: { type: String }
-  }],
   createdBy: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
+    ref: 'PlatformUser',
     required: true
   },
   updatedBy: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'User'
+    ref: 'PlatformUser'
   },
   vectorData: {
     isIndexed: { type: Boolean, default: false },
@@ -67,7 +70,7 @@ const topicSchema = new mongoose.Schema({
   timestamps: true
 });
 
-topicSchema.index({ name: 'text', content: 'text' });
+topicSchema.index({ name: 'text', plainTextContent: 'text' });
 
 const Topic = mongoose.model('Topic', topicSchema);
 module.exports = Topic;

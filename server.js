@@ -1,12 +1,12 @@
 require('dotenv').config();
 const app = require('./src/app');
 const { connectDB, disconnectDB } = require('./config/mongo');
-const { seedRoles } = require('./src/init/seedRoles');
-const { seedAgentRoles } = require('./src/init/seedAgentRoles');
-const { seedSuperAdmin } = require('./src/init/seedSuperAdmin');
-const { seedSystemSettings } = require('./src/init/seedSystemSettings');
-const { seedTopicCategories } = require('./src/init/seedTopicCategories');
-const { initQdrant } = require('./src/init/initQdrant');
+const { seedPlatformRoles } = require('./src/init/platform-role');
+const { seedAgentRoles } = require('./src/init/agent-role');
+const { seedSuperAdmin } = require('./src/init/super-admin');
+const { seedSystemSettings } = require('./src/init/system-settings');
+const { seedTopicCategories } = require('./src/init/topic-category');
+const { initQdrant } = require('./src/init/qdrant');
 const logger = require('./src/utils/logger');
 
 const PORT = process.env.PORT || 3000;
@@ -15,7 +15,7 @@ let server;
 const startServer = async () => {
   try {
     await connectDB();
-    await seedRoles();
+    await seedPlatformRoles();
     await seedAgentRoles();
     await seedSystemSettings();
     await seedTopicCategories();
@@ -25,7 +25,7 @@ const startServer = async () => {
       logger.success(`Сервер запущен на порту ${PORT} | http://localhost:${PORT}`);
     });
   } catch (error) {
-    logger.error('Ошибка при запуске', details = error.message || error);
+    logger.error('Ошибка при запуске', null, error.message || error);
     process.exit(1);
   }
 };

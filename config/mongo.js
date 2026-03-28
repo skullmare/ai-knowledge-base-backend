@@ -6,8 +6,8 @@ const connectDB = async () => {
     const conn = await mongoose.connect(process.env.MONGODB_URI, {});
     logger.success(`База данных ${conn.connection.name} успешно подключена (адрес сервера: ${conn.connection.host}:${conn.connection.port})`);
     
-    mongoose.connection.on('error', (err) => {
-      logger.error('Ошибка подключения к базе данных MongoDB', details = err.message || err);
+    mongoose.connection.on('error', (error) => {
+      logger.error('Ошибка подключения к базе данных MongoDB', null, error.message || error);
     });
 
     mongoose.connection.on('disconnected', () => {
@@ -16,7 +16,7 @@ const connectDB = async () => {
 
     return conn;
   } catch (error) {
-    logger.error('Ошибка подключения к базе данных MongoDB', details = error.message);
+    logger.error('Ошибка подключения к базе данных MongoDB', null, error.message);
     process.exit(1);
   }
 };
@@ -26,7 +26,7 @@ const disconnectDB = async () => {
     await mongoose.connection.close();
     logger.success('MongoDB соединение закрыто');
   } catch (error) {
-    logger.error('Ошибка при закрытии базы данных MongoDB', details = error.message || error);
+    logger.error('Ошибка при закрытии базы данных MongoDB', null, error.message || error);
   }
 };
 

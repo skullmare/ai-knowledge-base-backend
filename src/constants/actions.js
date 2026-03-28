@@ -45,12 +45,12 @@ const ACTIONS_CONFIG = {
     },
     PLATFORM_ROLES: {
         label: "Роли платформы",
-        entity: 'Role',
+        entity: 'PlatformRole',
         actions: {
-            CREATE: { key: 'ROLE_CREATE', label: 'Создание роли' },
-            UPDATE: { key: 'ROLE_UPDATE', label: 'Редактирование роли' },
-            DELETE: { key: 'ROLE_DELETE', label: 'Удаление роли' },
-            DELETE_MANY: { key: 'ROLE_DELETE_MANY', label: 'Удаление нескольких ролей' },
+            CREATE: { key: 'PLATFORM_ROLE_CREATE', label: 'Создание роли' },
+            UPDATE: { key: 'PLATFORM_ROLE_UPDATE', label: 'Редактирование роли' },
+            DELETE: { key: 'PLATFORM_ROLE_DELETE', label: 'Удаление роли' },
+            DELETE_MANY: { key: 'PLATFORM_ROLE_DELETE_MANY', label: 'Удаление нескольких ролей' },
         }
     },
     AGENT_ROLES: {
