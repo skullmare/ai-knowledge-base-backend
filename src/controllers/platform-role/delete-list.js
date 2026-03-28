@@ -1,4 +1,4 @@
-const Role = require('../../models/platform-role');
+const PlatformRole = require('../../models/platform-role');
 const successHandler = require('../../utils/success-handler');
 const errorHandler = require('../../utils/error-handler');
 const logHandler = require('../../utils/log-handler');
@@ -10,7 +10,7 @@ module.exports = async (req, res) => {
 
     try {
 
-        const result = await Role.deleteMany({ _id: { $in: ids } });
+        const result = await PlatformRole.deleteMany({ _id: { $in: ids } });
 
         await logHandler({
             action: ACTIONS_CONFIG.PLATFORM_ROLES.actions.DELETE_MANY.key,
