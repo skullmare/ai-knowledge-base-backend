@@ -1,88 +1,82 @@
+const Y = require('yjs');
 const { Hocuspocus } = require('@hocuspocus/server');
 const { Tiptap } = require('@hocuspocus/transformer');
 const Topic = require('../models/topic');
 const { validateAccessToken } = require('./auth');
 const logger = require('../utils/logger');
 
-function extractPlainText(blocks) {
-    if (!Array.isArray(blocks)) return '';
-    return blocks
-        .map((block) => {
-            let text = '';
+function extractPlainText(tiptapDoc) {
+    if (!tiptapDoc || !Array.isArray(tiptapDoc.content)) return '';
 
-            if (Array.isArray(block.content)) {
-                text = block.content.map((c) => c.text || '').join(' ');
-            }
+    const texts = [];
 
-            if (block.props) {
-                if (block.props.url) {
-                    text += ' ' + block.props.url;
-                }
-                if (block.props.caption) {
-                    text += ' ' + block.props.caption;
-                }
-            }
+    function traverse(node) {
+        if (!node) return;
 
-            if (block.children && block.children.length > 0) {
-                text += ' ' + extractPlainText(block.children);
-            }
-            return text;
-        })
-        .join(' ')
-        .trim()
-        .replace(/\s+/g, ' ');
+        if (node.type === 'text' && node.text) {
+            texts.push(node.text);
+        }
+
+        if (node.attrs?.url) {
+            texts.push(node.attrs.url);
+        }
+
+        if (node.attrs?.caption) {
+            texts.push(node.attrs.caption);
+        }
+
+        if (Array.isArray(node.content)) {
+            node.content.forEach(traverse);
+        }
+    }
+
+    traverse(tiptapDoc);
+
+    return texts.join(' ').trim().replace(/\s+/g, ' ');
 }
 
-const hocuspocus = new Hocuspocus();
-
-const hocuspocusConfigured = hocuspocus.configure({
+const hocuspocusConfigured = new Hocuspocus().configure({
     debounce: 3000,
-
-    async onConnect({ context }) {
-        logger.info(`[WS] Подключение установлено. UserId: ${context.user?.id}`);
-    },
 
     async onAuthenticate({ token, context }) {
         if (!token) throw new Error('Токен не предоставлен');
         const userData = validateAccessToken(token);
         if (!userData) throw new Error('Неверный или просроченный токен');
-        logger.success('[WS] Аутентификация пройдена успешно');
         context.user = userData;
+        logger.success('[WS] Аутентификация пройдена успешно');
     },
 
-    async onLoadDocument({ documentName }) {
-        try {
-            const topic = await Topic.findById(documentName).select('+collaborationData');
-            if (!topic) throw new Error('Документ не найден');
-            return topic.collaborationData || null;
-        } catch (error) {
-            logger.error('[WS] onLoadDocument ошибка:', null, error);
-            throw error;
-        }
+    async onConnect({ context }) {
+        logger.success(`[WS] Подключение установлено`);
     },
 
-    async onStoreDocument({ documentName, state, document, context }) {
+    async onLoadDocument({ documentName, document }) {
+        const topic = await Topic.findById(documentName).select('+collaborationData');
+        if (!topic) throw new Error(`Документ не найден: ${documentName}`);
+        if (topic.collaborationData) Y.applyUpdate(document, topic.collaborationData);
+        return document;
+    },
+
+    async onStoreDocument({ documentName, document, context }) {
         try {
-            const tiptap = new Tiptap();
-            const jsonContent = tiptap.fromYdoc(document);
-            const blocks = jsonContent.default;
-            const plainText = extractPlainText(blocks);
+            const jsonContent = new Tiptap().fromYdoc(document);
+            const tiptapDoc = jsonContent['document-store'];
 
             await Topic.findByIdAndUpdate(documentName, {
-                collaborationData: state,
-                content: blocks,
-                plainTextContent: plainText,
+                collaborationData: Buffer.from(Y.encodeStateAsUpdate(document)),
+                content: tiptapDoc?.content ?? [],
+                plainTextContent: extractPlainText(tiptapDoc),
                 updatedBy: context.user.id,
             });
 
             logger.success(`[WS] Документ сохранён: ${documentName}`);
         } catch (error) {
-            logger.error('[WS] onStoreDocument ошибка', null, error);
+            logger.error('[WS] onStoreDocument ошибка:', null, error);
         }
     },
 
     async onDisconnect({ context }) {
-        logger.success(`[WS] подключение разорвано. UserId: ${context.user?.id}`);
+        logger.success(`[WS] Подключение разорвано. UserId: ${context.user?.id}`);
     },
 });
 

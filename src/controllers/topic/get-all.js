@@ -6,11 +6,12 @@ const { ACTIONS_CONFIG } = require('../../constants/actions');
 
 module.exports = async (req, res) => {
     const userId = req.user?.id;
-    const { page, limit, search, category, status } = req.validatedData.query;
+    const { page, limit, search, category, role, status } = req.validatedData.query;
 
     try {
         const filter = {};
         if (category) filter['metadata.category'] = category;
+        if (role) filter['metadata.accessibleByRoles'] = role;
         if (status) filter.status = status;
         if (search) {
             filter.$text = { $search: search };

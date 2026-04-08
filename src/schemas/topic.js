@@ -84,6 +84,7 @@ const getTopicsSchema = z.object({
             .string()
             .optional(),
         category: objectId.optional(),
+        role: objectId.optional(),
         status: z
             .enum(['review', 'approved', 'archived'], "Некорректный статус для фильтрации")
             .optional()
