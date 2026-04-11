@@ -5,7 +5,7 @@ const expressWs = require('express-ws');
 
 const sendError = require('./utils/error-handler');
 const logger = require('./utils/logger');
-const hocuspocusConfigured = require('./services/collaboration');
+const { getHocuspocus } = require('./services/init-collaboration');
 
 const userRoutes = require('./routes/platform-user');
 const authRoutes = require('./routes/auth');
@@ -20,32 +20,26 @@ const logsRoutes = require('./routes/log');
 const agentRoleRoutes = require('./routes/agent-role');
 const agentUserRoutes = require('./routes/agent-user');
 
-
 const app = express();
 expressWs(app);
 
-const allowedOrigins = [
-  'http://localhost:5173'
-];
+const allowedOrigins = ['http://localhost:5173'];
 
-app.use(cors({
-  origin: allowedOrigins,
-  credentials: true
-}));
-
+app.use(cors({ origin: allowedOrigins, credentials: true }));
 app.use(express.json());
 app.use(cookieParser());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json({ limit: '10kb' }));
 
-app.ws('/collaboration', (ws, req) => {
-    try {
-        hocuspocusConfigured.handleConnection(ws, req);
-    } catch (error) {
-        logger.error('[WS] ошибка handleConnection:', null, error.message);
+app.ws('/api/v1/collaboration', (ws, req) => {
+    const hocuspocus = getHocuspocus();
+    if (hocuspocus) {
+        hocuspocus.handleConnection(ws, req);
+    } else {
+        logger.error('[WS] Hocuspocus ещё не инициализирован');
+        ws.close(1011, 'Hocuspocus not ready');
     }
 });
-
 
 app.use('/api/v1/health', healthRoutes);
 app.use('/api/v1/auth', authRoutes);
@@ -64,7 +58,7 @@ app.use((req, res) => {
     sendError(res, 404, `Маршрут ${req.method} ${req.url} не найден`);
 });
 
-app.use((err, res) => {    
+app.use((err, req, res) => {
     const status = err.status || 500;
     const message = err.message || 'Внутренняя ошибка сервера';
     const errors = err.errors || []; 

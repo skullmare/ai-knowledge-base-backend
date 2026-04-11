@@ -7,14 +7,10 @@ const topicSchema = new mongoose.Schema({
     trim: true,
     index: true
   },
-  content: {
-    type: mongoose.Schema.Types.Mixed,
-    required: true,
-    default: []
-  },
-  plainTextContent: {
+  markdownContent: {
     type: String,
-    select: false
+    select: false,
+    default: ''
   },
   collaborationData: {
     type: Buffer,
@@ -70,7 +66,7 @@ const topicSchema = new mongoose.Schema({
   timestamps: true
 });
 
-topicSchema.index({ name: 'text', plainTextContent: 'text' });
+topicSchema.index({ name: 'text', markdownContent: 'text' });
 
 const Topic = mongoose.model('Topic', topicSchema);
 module.exports = Topic;

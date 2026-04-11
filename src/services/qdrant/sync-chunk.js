@@ -12,7 +12,7 @@ async function syncTopicToQdrant(topic) {
     
     await deleteTopicFromQdrant(topicId);
 
-    let content = topic.content;
+    let content = topic.markdownContent;
 
     const chunks = await getDoclingChunks(content);
     const embeddings = await getEmbeddings(chunks, 'openai/text-embedding-3-small');
@@ -26,8 +26,7 @@ async function syncTopicToQdrant(topic) {
                 topicId,
                 name: topic.name,
                 category: topic.metadata.category?.name?.toString(),
-                accessibleByRoles: (topic.metadata.accessibleByRoles || []).map(r => r._id.toString()),
-                files: (topic.files || []).map(f => ({ url: f.url, name: f.name, description: f.description }))
+                accessibleByRoles: (topic.metadata.accessibleByRoles || []).map(r => r._id.toString())
             }
         }
     }));

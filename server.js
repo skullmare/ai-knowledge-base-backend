@@ -7,6 +7,7 @@ const { seedSuperAdmin } = require('./src/init/super-admin');
 const { seedSystemSettings } = require('./src/init/system-settings');
 const { seedTopicCategories } = require('./src/init/topic-category');
 const { initQdrant } = require('./src/init/qdrant');
+const { initHocuspocus } = require('./src/services/init-collaboration'); // ← добавили
 const logger = require('./src/utils/logger');
 
 const PORT = process.env.PORT || 3000;
@@ -15,12 +16,15 @@ let server;
 const startServer = async () => {
   try {
     await connectDB();
+    
     await seedPlatformRoles();
     await seedAgentRoles();
     await seedSystemSettings();
     await seedTopicCategories();
     await seedSuperAdmin();
     await initQdrant();
+    await initHocuspocus();
+
     server = app.listen(PORT, () => {
       logger.success(`Сервер запущен на порту ${PORT} | http://localhost:${PORT}`);
     });
@@ -40,7 +44,6 @@ const gracefulShutdown = async (signal) => {
   }
 
   await disconnectDB();
-
   logger.success('Приложение остановлено');
   process.exit(0);
 };
