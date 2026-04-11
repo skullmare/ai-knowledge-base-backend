@@ -23,7 +23,7 @@ const agentUserRoutes = require('./routes/agent-user');
 const app = express();
 expressWs(app);
 
-const allowedOrigins = ['http://localhost:5173'];
+const allowedOrigins = ['http://localhost:5173', 'https://operon-front-rocketmind.amvera.io'];
 
 app.use(cors({ origin: allowedOrigins, credentials: true }));
 app.use(express.json());
