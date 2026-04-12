@@ -14,6 +14,8 @@ module.exports = async (req, res) => {
         const topic = await Topic.findById(id)            
             .populate('metadata.category', 'name')
             .populate('metadata.accessibleByRoles', 'name')
+            .populate('createdBy', 'firstName lastName photoUrl') 
+            .populate('updatedBy', 'firstName lastName photoUrl')
             .select('+markdownContent');
 
         await syncTopicToQdrant(topic);
