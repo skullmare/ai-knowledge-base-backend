@@ -36,7 +36,7 @@ async function initQdrant() {
             logger.success(`Коллекция ${collectionName} уже существует`);
         }
     } catch (error) {
-        logger.error("Ошибка при инициализации Qdrant", null, error.message || error);
+        logger.error("Ошибка при инициализации Qdrant", null, error?.cause || error.message || error);
     }
 }
 
