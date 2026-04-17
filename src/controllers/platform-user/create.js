@@ -1,8 +1,12 @@
+const crypto = require('crypto');
 const PlatformUser = require('../../models/platform-user');
 const { hashPassword } = require('../../utils/password-handler');
+const sendEmail = require('../../services/email/send-email');
+const welcomeUserTemplate = require('../../utils/templates/welcome-user');
 const successHandler = require('../../utils/success-handler');
 const errorHandler = require('../../utils/error-handler');
 const logHandler = require('../../utils/log-handler');
+const logger = require('../../utils/logger');
 const { ACTIONS_CONFIG } = require('../../constants/actions');
 
 module.exports = async (req, res) => {
@@ -10,7 +14,8 @@ module.exports = async (req, res) => {
     const data = req.validatedData.body;
 
     try {
-        const hashedPassword = await hashPassword(data.password);
+        const plainPassword = crypto.randomBytes(12).toString('base64').slice(0, 16);
+        const hashedPassword = await hashPassword(plainPassword);
 
         const newPlatformUser = await PlatformUser.create({
             ...data,
@@ -24,6 +29,20 @@ module.exports = async (req, res) => {
             entityId: newPlatformUser._id,
             status: 'success'
         });
+
+        try {
+            await sendEmail({
+                email: newPlatformUser.email,
+                subject: 'Добро пожаловать в Operon — данные для входа',
+                html: welcomeUserTemplate({
+                    firstName: newPlatformUser.firstName,
+                    login: newPlatformUser.login,
+                    password: plainPassword
+                })
+            });
+        } catch (emailError) {
+            logger.error(`Ошибка при отправке приветственного письма: ${emailError.message}`);
+        }
 
         const responseData = newPlatformUser.toObject();
         delete responseData.password;
