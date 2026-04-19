@@ -10,6 +10,9 @@ module.exports = async (req, res) => {
     const data = req.validatedData.body;
 
     try {
+        if (data.role) {
+            data.status = 'active';
+        }
         const updatedAgentUser = await AgentUser.findByIdAndUpdate(
             id,
             { $set: data },

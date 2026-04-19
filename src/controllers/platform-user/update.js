@@ -12,15 +12,11 @@ module.exports = async (req, res) => {
     const data = req.validatedData.body;
 
     try {
-        if (data.password) {
-            data.password = await hashPassword(data.password);
-        }
-
         const updatedPlatformUser = await PlatformUser.findByIdAndUpdate(
             id,
             { $set: data },
             { returnDocument: 'after' }
-        );
+        ).populate('role', 'name');
 
         await logHandler({
             action: ACTIONS_CONFIG.PLATFORM_USERS.actions.UPDATE.key,

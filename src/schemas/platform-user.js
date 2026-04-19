@@ -39,7 +39,6 @@ const createUserSchema = z.object({
             .transform(val => val.toLowerCase())
             .superRefine(loginIsUnique()),
         email: z.email("Некорректный формат email"),
-        password: z.string("Пароль обязателен").min(10, "Пароль должен быть не менее 10 символов").max(100, "Пароль должен быть не более 100 символов"),
         role: objectId.pipe(z.string("Роль обязательна").superRefine(dbExists('PlatformRole'))),
         photoUrl: z.string().url("Некорректная ссылка на фото").optional().or(z.literal('')),
         status: z.enum(['active', 'blocked'], "Недопустимый статус. Доступны: active, blocked").default('active')
@@ -75,6 +74,14 @@ const updateUserSchema = z.object({
             code: 'custom',
             path: ['body', 'role'],
             message: 'У системного пользователя нельзя изменять роль'
+        });
+    }
+
+    if (user.isSystem && data.body.status) {
+        ctx.addIssue({
+            code: 'custom',
+            path: ['body', 'status'],
+            message: 'У системного пользователя нельзя изменять статус'
         });
     }
 

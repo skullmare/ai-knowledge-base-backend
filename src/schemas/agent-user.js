@@ -16,7 +16,7 @@ const updateAgentUserSchema = z.object({
     }),
     body: z.object({
         role: objectId.pipe(z.string().superRefine(dbExists('AgentRole'))).optional(),
-        status: z.enum(['active', 'blocked', 'pending'], "Недопустимый статус. Доступны: active, blocked, pending").optional()
+        status: z.enum(['active', 'blocked'], "Недопустимый статус. Доступны: active, blocked").optional()
     })
 }).superRefine(async (data, ctx) => {
     if (!mongoose.Types.ObjectId.isValid(data.params.id)) return;
