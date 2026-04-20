@@ -15,6 +15,11 @@ module.exports = async (req, res) => {
             status: 'review'
         });
 
+        await result.populate('metadata.category', 'name');
+        await result.populate('metadata.accessibleByRoles', 'name');
+        await result.populate('createdBy', 'firstName lastName photoUrl');
+        await result.populate('updatedBy', 'firstName lastName photoUrl');
+
         await logHandler({
             action: ACTIONS_CONFIG.TOPICS.actions.CREATE.key,
             message: `Создана новая тема: "${result.name}"`,
