@@ -20,7 +20,9 @@ module.exports = async (req, res) => {
         const newPlatformUser = await PlatformUser.create({
             ...data,
             password: hashedPassword
-        }).populate('role', 'name');
+        });
+
+        await newPlatformUser.populate('role', 'name');
 
         await logHandler({
             action: ACTIONS_CONFIG.PLATFORM_USERS.actions.CREATE.key,
