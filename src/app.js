@@ -24,6 +24,8 @@ const agentUserRoutes = require('./routes/agent-user');
 const app = express();
 expressWs(app);
 
+app.set('trust proxy', 1);
+
 const isDev = process.env.NODE_ENV === 'development';
 const allowedOrigins = isDev ? ['http://localhost:5173'] : ['https://operon-front-rocketmind.amvera.io'];
 
