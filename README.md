@@ -81,12 +81,6 @@ RESET_PASSWORD_URL=http://localhost:3000/reset-password
 
 ### 4. Запуск (Docker)
 
-Самый быстрый способ поднять всю инфраструктуру (MongoDB, Qdrant, Docling):
-
-```bash
-docker-compose up -d
-
-```
 
 ### 5. Установка зависимостей и запуск приложения
 
