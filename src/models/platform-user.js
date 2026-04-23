@@ -59,6 +59,19 @@ const platformUserSchema = new mongoose.Schema({
     resetPasswordExpires: {
         type: Date,
         select: false
+    },
+    twoFactorCode: {
+        type: String,
+        select: false
+    },
+    twoFactorCodeSentAt: {
+        type: Date,
+        select: false
+    },
+    twoFactorAttempts: {
+        type: Number,
+        default: 0,
+        select: false
     }
 }, {
     timestamps: true 

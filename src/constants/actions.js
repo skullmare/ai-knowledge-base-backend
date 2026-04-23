@@ -80,6 +80,10 @@ const ACTIONS_CONFIG = {
             LOGIN_FAILED: { key: 'AUTH_LOGIN_FAILED', label: 'Неудачный вход' },
             REFRESH_INVALID: { key: 'AUTH_REFRESH_INVALID', label: 'Ошибка обновления токена' },
             SERVER_ERROR: { key: 'AUTH_SERVER_ERROR', label: 'Системная ошибка авторизации' },
+            TWO_FACTOR_SENT: { key: 'AUTH_TWO_FACTOR_SENT', label: 'Код двухфакторной аутентификации отправлен' },
+            TWO_FACTOR_SUCCESS: { key: 'AUTH_TWO_FACTOR_SUCCESS', label: 'Двухфакторная аутентификация пройдена' },
+            TWO_FACTOR_FAILED: { key: 'AUTH_TWO_FACTOR_FAILED', label: 'Неверный код двухфакторной аутентификации' },
+            TWO_FACTOR_EXPIRED: { key: 'AUTH_TWO_FACTOR_EXPIRED', label: 'Код двухфакторной аутентификации истёк' },
         }
     },
     INFRASTRUCTURE: {
