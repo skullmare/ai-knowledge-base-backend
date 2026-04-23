@@ -4,22 +4,28 @@ const errorHandler = require('../utils/error-handler');
 const createRateLimit = ({
     windowMs = 15 * 60 * 1000,
     max = 10,
-    message = 'Слишком много запросов, попробуйте позже'
+    messageTemplate = 'Слишком много запросов с {ip}, попробуйте позже'
 } = {}) => rateLimit({
     windowMs,
     limit: max,
-    standardHeaders: true,
+    standardHeaders: 'draft-7',  // для 8.x версии
     legacyHeaders: false,
     handler: (req, res) => {
-        const retryAfterSec = Math.ceil(req.rateLimit.resetTime / 1000 - Date.now() / 1000);
+        const retryAfterSec = Math.ceil((req.rateLimit.resetTime - Date.now()) / 1000);
         const retryMessage = retryAfterSec < 60
             ? `Попробуйте через ${retryAfterSec} сек.`
             : `Попробуйте через ${Math.ceil(retryAfterSec / 60)} мин.`;
-
+        
+        // Получаем реальный IP клиента
+        const clientIp = req.headers['x-forwarded-for']?.split(',')[0] || req.ip;
+        
+        // Подставляем IP в сообщение
+        const finalMessage = messageTemplate.replace('{ip}', clientIp);
+        
         return errorHandler(
             res,
             429,
-            message,
+            finalMessage,
             [{ path: 'rateLimit', message: retryMessage }]
         );
     }
