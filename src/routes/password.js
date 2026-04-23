@@ -9,6 +9,7 @@ const {
 
 const { auth } = require('../middlewares/auth');
 const validate = require('../middlewares/validate');
+const rateLimit = require('../middlewares/rateLimit');
 
 const { 
     changePasswordSchema, 
@@ -24,8 +25,9 @@ router.put(
 );
 
 router.post(
-    '/forgot', 
-    validate(forgotPasswordSchema), 
+    '/forgot',
+    rateLimit({ windowMs: 15 * 60 * 1000, max: 5, message: 'Слишком много запросов на сброс пароля, попробуйте позже' }),
+    validate(forgotPasswordSchema),
     forgotPassword
 );
 
