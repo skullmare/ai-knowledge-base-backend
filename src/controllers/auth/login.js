@@ -21,12 +21,6 @@ module.exports = async (req, res) => {
         );
 
         if (!user || !(await comparePassword(password, user.password))) {
-            await logHandler({
-                action: ACTIONS_CONFIG.AUTH.actions.LOGIN_FAILED.key,
-                message: `Неудачная попытка входа для логина: ${userLogin}`,
-                userId: user?._id || null,
-                status: 'error'
-            });
 
             return errorHandler(res, 401, 'Ошибка авторизации', [
                 { path: 'login', message: 'Неверный логин или пароль' }
