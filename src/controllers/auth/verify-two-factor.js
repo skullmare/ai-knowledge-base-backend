@@ -9,6 +9,7 @@ const logger = require('../../utils/logger');
 
 const TWO_FACTOR_CODE_TTL_MS = 15 * 60 * 1000;
 const MAX_ATTEMPTS = 3;
+const MAIN_DOMAIN = process.env.MAIN_DOMAIN;
 
 module.exports = async (req, res) => {
     try {
@@ -81,7 +82,7 @@ module.exports = async (req, res) => {
             secure: true,
             sameSite: 'none',
             path: '/',
-            domain: '.amvera.io',
+            domain: MAIN_DOMAIN,
             expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
         });
 

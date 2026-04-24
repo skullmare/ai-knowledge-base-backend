@@ -6,6 +6,7 @@ const logger = require('../utils/logger');
 
 const login = process.env.LOGIN_SUPER_ADMIN;
 const password = process.env.PASSWORD_SUPER_ADMIN;
+const email = process.env.EMAIL_SUPER_ADMIN;
 
 const seedSuperAdmin = async () => {
     try {
@@ -29,7 +30,7 @@ const seedSuperAdmin = async () => {
             firstName: 'System',
             lastName: 'Administrator',
             login: login,
-            email: 'admin@admin.ru',
+            email: email,
             password: hashedPassword,
             role: adminPlatformRole._id,
             status: 'active',
