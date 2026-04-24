@@ -81,6 +81,7 @@ module.exports = async (req, res) => {
             secure: true,
             sameSite: 'none',
             path: '/',
+            domain: '.amvera.io',
             expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
         });
 
