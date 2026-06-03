@@ -2,13 +2,16 @@ const axios = require('axios');
 
 const PLANFIX_API_URL = 'https://operon.planfix.ru/rest/user/list';
 
-// Mapping Planfix position names to our AgentRole names
-const ROLE_NAME_MAP = {
-    'Администратор': 'Администратор',
-    'Оператор': 'Оператор',
-    'Застройщик': 'Застройщик',
-    'Партнер': 'Партнер'
-};
+const KNOWN_ROLES = new Set(['Администратор', 'Оператор', 'Застройщик', 'Партнер']);
+
+function normalizeRole(raw) {
+    const normalized = raw
+        .trim()
+        .toLowerCase()
+        .replace(/ё/g, 'е');
+    const titled = normalized.charAt(0).toUpperCase() + normalized.slice(1);
+    return KNOWN_ROLES.has(titled) ? titled : null;
+}
 
 async function getPlanfixUserRole(phone) {
     const token = process.env.PLANFIX_API_TOKEN;
@@ -32,7 +35,7 @@ async function getPlanfixUserRole(phone) {
         const positionName = users[0].position?.name;
         if (!positionName) return null;
 
-        return ROLE_NAME_MAP[positionName] || null;
+        return normalizeRole(positionName);
     } catch {
         return null;
     }
