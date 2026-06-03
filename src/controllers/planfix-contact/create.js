@@ -22,6 +22,10 @@ module.exports = async (req, res) => {
     if (phone)    lines.push(`Телефон: ${phone}`);
     if (info)     lines.push(`Информация: ${info}`);
 
+    if (!lines.length) {
+        return sendError(res, 400, 'Необходимо передать хотя бы одно поле контакта');
+    }
+
     const markdownContent = lines.join('\n');
     const topicId = `contact_id:${id}`;
 
