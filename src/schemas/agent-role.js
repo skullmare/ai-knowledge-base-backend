@@ -55,10 +55,19 @@ const updateAgentRoleSchema = z.object({
         const role = await mongoose.model('AgentRole').findById(data.params.id);
         
         if (!role) {
-            ctx.addIssue({ 
-                code: 'custom', 
-                path: ['params', 'id'], 
-                message: 'Роль для пользователей агента не найдена' 
+            ctx.addIssue({
+                code: 'custom',
+                path: ['params', 'id'],
+                message: 'Роль для пользователей агента не найдена'
+            });
+            return;
+        }
+
+        if (role.isSystem) {
+            ctx.addIssue({
+                code: 'custom',
+                path: ['params', 'id'],
+                message: `Нельзя изменить системную роль "${role.name}"`
             });
             return;
         }
@@ -80,10 +89,19 @@ const deleteAgentRoleSchema = z.object({
         const role = await mongoose.model('AgentRole').findById(data.params.id);
         
         if (!role) {
-            ctx.addIssue({ 
-                code: 'custom', 
-                path: ['params', 'id'], 
-                message: 'Роль для пользователей агента не найдена' 
+            ctx.addIssue({
+                code: 'custom',
+                path: ['params', 'id'],
+                message: 'Роль для пользователей агента не найдена'
+            });
+            return;
+        }
+
+        if (role.isSystem) {
+            ctx.addIssue({
+                code: 'custom',
+                path: ['params', 'id'],
+                message: `Нельзя удалить системную роль "${role.name}"`
             });
             return;
         }

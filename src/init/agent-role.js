@@ -3,6 +3,7 @@ const logger = require('../utils/logger');
 
 const seedAgentRoles = async () => {
     const roles = [
+        { name: 'Оператор', description: 'Системная роль для операторов. Имеет доступ к базе контактов из Planfix.', isSystem: true },
         { name: 'Застройщик', description: 'Роль для доступа к ИИ агенту от имени застройщика' },
         { name: 'Партнер', description: 'Роль для доступа к ИИ агенту от имени партнера' }
     ];
@@ -11,10 +12,7 @@ const seedAgentRoles = async () => {
         for (const role of roles) {
             await AgentRole.findOneAndUpdate(
                 { name: role.name },
-                {
-                    name: role.name,
-                    description: role.description
-                },
+                { name: role.name, description: role.description, isSystem: role.isSystem || false },
                 { upsert: true, returnDocument: 'after', runValidators: true }
             );
         }

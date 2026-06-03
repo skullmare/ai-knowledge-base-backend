@@ -1,7 +1,9 @@
 const AgentUser = require('../../models/agent-user');
+const AgentRole = require('../../models/agent-role');
 const { processMessage } = require('../agent');
 const kb = require('./keyboards');
 const { get: getBot } = require('../../../config/telegram');
+const { getPlanfixUserRole } = require('../planfix/get-user-role');
 
 async function onMessage(msg) {
     const chatId = String(msg.chat.id);
@@ -40,15 +42,29 @@ async function onContact(msg) {
         return bot.sendMessage(chatId, text, kb.remove);
     }
 
+    // Try to resolve role from Planfix by phone number
+    const phone = contact.phone_number.startsWith('+') ? contact.phone_number : `+${contact.phone_number}`;
+    const planfixRoleName = await getPlanfixUserRole(phone);
+    let roleId = null;
+    if (planfixRoleName) {
+        const role = await AgentRole.findOne({ name: planfixRoleName });
+        if (role) roleId = role._id;
+    }
+
     await AgentUser.create({
         chatId,
         messenger: 'telegram',
         phone: contact.phone_number,
         firstName: contact.first_name || msg.from.first_name,
-        lastName: contact.last_name || msg.from.last_name || ''
+        lastName: contact.last_name || msg.from.last_name || '',
+        ...(roleId && { role: roleId, status: 'active' })
     });
 
-    return bot.sendMessage(chatId, 'Спасибо! Вы успешно зарегистрированы. Дождитесь когда администратор предоставит вам доступ к ИИ-агенту.', kb.remove);
+    const confirmText = roleId
+        ? 'Спасибо! Вы успешно зарегистрированы и можете использовать ИИ-агента.'
+        : 'Спасибо! Вы успешно зарегистрированы. Дождитесь когда администратор предоставит вам доступ к ИИ-агенту.';
+
+    return bot.sendMessage(chatId, confirmText, kb.remove);
 }
 
 module.exports = { onMessage, onContact };
