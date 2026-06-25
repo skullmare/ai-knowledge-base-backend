@@ -4,6 +4,8 @@ const kb = require('./keyboards');
 const { get: getBot } = require('../../../config/max');
 
 async function onMessage(message) {
+    const logger = require('../../utils/logger');
+    logger.info('[MaxBot] incoming message: ' + JSON.stringify(message));
     const userId = message.sender.user_id;
     const text = message.body?.text || '';
     const bot = getBot();
