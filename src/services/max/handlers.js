@@ -4,27 +4,26 @@ const kb = require('./keyboards');
 const { get: getBot } = require('../../../config/max');
 
 async function onMessage(message) {
-    const logger = require('../../utils/logger');
-    logger.debug('[MaxBot] incoming message', JSON.stringify(message));
+    const chatId = message.recipient.chat_id;
     const userId = message.sender.user_id;
     const text = message.body?.text || '';
     const bot = getBot();
 
     if (text === '/start') {
         const user = await AgentUser.findOne({ chatId: String(userId), messenger: 'max' }).populate('role');
-        if (!user)      return bot.sendMessage(userId, 'Добро пожаловать! Чтобы получить доступ к ИИ-агенту, поделитесь своим номером телефона.', [kb.phoneRequest]);
-        if (!user.role) return bot.sendMessage(userId, 'У вас пока что нет прав доступа, дождитесь когда вам разрешат использовать ИИ агента.');
-        return bot.sendMessage(userId, 'Вы можете использовать ИИ-агента. Напишите ваш вопрос.');
+        if (!user)      return bot.sendMessage(chatId, 'Добро пожаловать! Чтобы получить доступ к ИИ-агенту, поделитесь своим номером телефона.', [kb.phoneRequest]);
+        if (!user.role) return bot.sendMessage(chatId, 'У вас пока что нет прав доступа, дождитесь когда вам разрешат использовать ИИ агента.');
+        return bot.sendMessage(chatId, 'Вы можете использовать ИИ-агента. Напишите ваш вопрос.');
     }
 
     const user = await AgentUser.findOne({ chatId: String(userId), messenger: 'max' }).populate('role');
 
-    if (!user)      return bot.sendMessage(userId, 'Чтобы получить доступ к ИИ-агенту, поделитесь своим номером телефона.', [kb.phoneRequest]);
-    if (!user.role) return bot.sendMessage(userId, 'У вас пока что нет прав доступа, дождитесь когда вам разрешат использовать ИИ агента.');
+    if (!user)      return bot.sendMessage(chatId, 'Чтобы получить доступ к ИИ-агенту, поделитесь своим номером телефона.', [kb.phoneRequest]);
+    if (!user.role) return bot.sendMessage(chatId, 'У вас пока что нет прав доступа, дождитесь когда вам разрешат использовать ИИ агента.');
 
     await AgentUser.findByIdAndUpdate(user._id, { lastActivity: new Date(), $inc: { requestsCount: 1 } });
-    await bot.sendTyping(userId);
-    return bot.sendMessage(userId, await processMessage(user, text));
+    await bot.sendTyping(chatId);
+    return bot.sendMessage(chatId, await processMessage(user, text));
 }
 
 async function onCallback(callback) {

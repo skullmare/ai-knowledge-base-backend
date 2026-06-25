@@ -21,9 +21,9 @@ const create = (token) => {
             return data.updates || [];
         },
 
-        async sendMessage(userId, text, attachments = []) {
+        async sendMessage(chatId, text, attachments = []) {
             const body = {
-                recipient: { user_id: userId },
+                recipient: { chat_id: chatId },
                 type: 'text',
                 body: { text }
             };
@@ -31,9 +31,9 @@ const create = (token) => {
             await axios.post(`${BASE_URL}/messages`, body, { headers });
         },
 
-        async sendTyping(userId) {
+        async sendTyping(chatId) {
             await axios.post(
-                `${BASE_URL}/chats/${userId}/actions`,
+                `${BASE_URL}/chats/${chatId}/actions`,
                 { action: 'typing_on' },
                 { headers }
             ).catch(() => {});
