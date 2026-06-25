@@ -17,7 +17,9 @@ async function onMessage(message, bot) {
         const vcf = contactAttachment.payload?.vcf_info || '';
         const phone = extractPhoneFromVcf(vcf);
         if (phone) {
-            const existing = await AgentUser.findOne({ chatId: String(userId), messenger: 'max' });
+            const existing = await AgentUser.findOne({
+                $or: [{ chatId: String(userId), messenger: 'max' }, { phone }]
+            });
             if (existing) {
                 const text = existing.role
                     ? 'Вы уже зарегистрированы и можете использовать ИИ-агента.'
