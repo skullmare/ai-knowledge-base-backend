@@ -9,7 +9,7 @@ const { seedTopicCategories } = require('./src/init/topic-category');
 const { initQdrant } = require('./src/init/qdrant');
 const { initHocuspocus } = require('./src/services/init-collaboration');
 const { initBot } = require('./src/services/telegram/bot');
-// const { initMaxBot } = require('./src/services/max/bot');
+const { initMaxBot } = require('./src/services/max/bot');
 const logger = require('./src/utils/logger');
 
 const PORT = process.env.PORT || 3000;
@@ -27,7 +27,7 @@ const startServer = async () => {
     await initQdrant();
     await initHocuspocus();
     initBot();
-    // initMaxBot();
+    initMaxBot();
 
     server = app.listen(PORT, () => {
       logger.success(`Сервер запущен на порту ${PORT} | http://localhost:${PORT}`);
