@@ -6,13 +6,15 @@ let _client = null;
 
 const create = (token) => {
     let marker = null;
+    const headers = { Authorization: `Bearer ${token}` };
 
     _client = {
         async getUpdates(timeout = 25) {
-            const params = { access_token: token, timeout, limit: 100 };
+            const params = { timeout, limit: 100 };
             if (marker != null) params.marker = marker;
             const { data } = await axios.get(`${BASE_URL}/updates`, {
                 params,
+                headers,
                 timeout: (timeout + 5) * 1000
             });
             if (data.marker != null) marker = data.marker;
@@ -26,16 +28,14 @@ const create = (token) => {
                 body: { text }
             };
             if (attachments.length) body.attachments = attachments;
-            await axios.post(`${BASE_URL}/messages`, body, {
-                params: { access_token: token }
-            });
+            await axios.post(`${BASE_URL}/messages`, body, { headers });
         },
 
         async sendTyping(userId) {
             await axios.post(
                 `${BASE_URL}/chats/${userId}/actions`,
                 { action: 'typing_on' },
-                { params: { access_token: token } }
+                { headers }
             ).catch(() => {});
         }
     };
