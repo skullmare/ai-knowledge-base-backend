@@ -18,7 +18,8 @@ async function startPolling(bot) {
                         await onCallback(update.callback);
                     }
                 } catch (err) {
-                    logger.error('[MaxBot] Ошибка обработки обновления', null, err.message);
+                    const detail = err?.response?.data ? JSON.stringify(err.response.data) : err.message;
+                    logger.error('[MaxBot] Ошибка обработки обновления', null, detail);
                 }
             }
         } catch (err) {
