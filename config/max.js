@@ -22,8 +22,9 @@ const create = (token) => {
         },
 
         async sendMessage(chatId, text, attachments = []) {
+            const recipient = typeof chatId === 'object' ? chatId : { chat_id: chatId };
             const body = {
-                recipient: { chat_id: chatId },
+                recipient,
                 type: 'text',
                 body: { text }
             };
@@ -32,8 +33,9 @@ const create = (token) => {
         },
 
         async sendTyping(chatId) {
+            const id = typeof chatId === 'object' ? chatId.chat_id : chatId;
             await axios.post(
-                `${BASE_URL}/chats/${chatId}/actions`,
+                `${BASE_URL}/chats/${id}/actions`,
                 { action: 'typing_on' },
                 { headers }
             ).catch(() => {});

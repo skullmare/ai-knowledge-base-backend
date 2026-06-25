@@ -4,7 +4,7 @@ const kb = require('./keyboards');
 const { get: getBot } = require('../../../config/max');
 
 async function onMessage(message) {
-    const chatId = message.recipient.chat_id;
+    const chatId = message.recipient;
     const userId = message.sender.user_id;
     const text = message.body?.text || '';
     const bot = getBot();
