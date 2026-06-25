@@ -23,7 +23,7 @@ const create = (token) => {
         },
 
         async sendMessageToUser(userId, text, attachments = []) {
-            const body = { type: 'text', body: { text } };
+            const body = { text };
             if (attachments.length) body.attachments = attachments;
             await axios.post(`${BASE_URL}/messages`, body, {
                 params: { user_id: userId },
@@ -32,7 +32,7 @@ const create = (token) => {
         },
 
         async sendMessageToChat(chatId, text, attachments = []) {
-            const body = { type: 'text', body: { text } };
+            const body = { text };
             if (attachments.length) body.attachments = attachments;
             await axios.post(`${BASE_URL}/messages`, body, {
                 params: { chat_id: chatId },
