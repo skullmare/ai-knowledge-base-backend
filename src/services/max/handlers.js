@@ -21,6 +21,9 @@ async function onMessage(message, bot) {
                 $or: [{ chatId: String(userId), messenger: 'max' }, { phone }]
             });
             if (existing) {
+                if (!existing.chatId || existing.messenger !== 'max') {
+                    await AgentUser.findByIdAndUpdate(existing._id, { chatId: String(userId), messenger: 'max' });
+                }
                 const text = existing.role
                     ? 'Вы уже зарегистрированы и можете использовать ИИ-агента.'
                     : 'Вы уже зарегистрированы. Дождитесь когда вам разрешат использовать ИИ агента.';
