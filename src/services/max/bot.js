@@ -9,6 +9,7 @@ async function startPolling(bot) {
         try {
             const updates = await bot.getUpdates(25);
             retryDelay = 3000;
+            if (updates.length === 0) await new Promise(r => setTimeout(r, 1000));
             for (const update of updates) {
                 try {
                     if (update.update_type === 'message_created') {
