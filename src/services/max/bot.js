@@ -12,6 +12,7 @@ async function startPolling(bot) {
             if (updates.length === 0) await new Promise(r => setTimeout(r, 1000));
             for (const update of updates) {
                 try {
+                    logger.debug('[MaxBot] update', JSON.stringify(update));
                     if (update.update_type === 'message_created') {
                         await onMessage(update.message, bot);
                     } else if (update.update_type === 'message_callback') {
