@@ -6,7 +6,7 @@ let _client = null;
 
 const create = (token) => {
     let marker = null;
-    const headers = { Authorization: `Bearer ${token}` };
+    const headers = { Authorization: token };
 
     _client = {
         async getUpdates(timeout = 25) {
