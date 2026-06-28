@@ -15,12 +15,10 @@ const agentUserSchema = new mongoose.Schema({
         sparse: true
     },
     chatIdTG: {
-        type: String,
-        sparse: true
+        type: String
     },
     chatIdMAX: {
-        type: String,
-        sparse: true
+        type: String
     },
     requestsCount: {
         type: Number,
