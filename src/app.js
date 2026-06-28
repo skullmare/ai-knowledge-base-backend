@@ -28,7 +28,7 @@ expressWs(app);
 app.set('trust proxy', 1);
 
 const isDev = process.env.NODE_ENV === 'development';
-const allowedOrigins = isDev ? ['http://localhost:5174'] : ['https://operon-front-rocketmind.amvera.io'];
+const allowedOrigins = isDev ? ['http://localhost:5174'] : ['https://front-operon123.amvera.io'];
 
 app.use(cors({ origin: allowedOrigins, credentials: true }));
 app.use(express.json());
