@@ -27,14 +27,6 @@ module.exports = async (req, res) => {
             );
         }
 
-        await logHandler({
-            action: ACTIONS_CONFIG.AGENT_USERS.actions.READ.key,
-            message: `Получены данные пользователя: ${agentUser.chatId}`,
-            userId: currentPlatformUserId,
-            entityId: agentUser._id,
-            status: 'success'
-        });
-
         return successHandler(res, 200, 'Данные пользователя успешно получены', agentUser);
 
     } catch (error) {

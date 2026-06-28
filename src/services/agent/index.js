@@ -9,7 +9,7 @@ const { generateResponse } = require('./respond');
 const HISTORY_LIMIT = 10;
 
 async function processMessage(agentUser, userMessage) {
-    const { chatId, _id: agentUserId } = agentUser;
+    const { _id: agentUserId } = agentUser;
     const roleId = (agentUser.role._id ?? agentUser.role).toString();
 
     const [[embedding], usedCategoryIds] = await Promise.all([
@@ -22,17 +22,17 @@ async function processMessage(agentUser, userMessage) {
     const categoryName = await classifyCategory(userMessage, categories);
     const chunks = await searchChunks(embedding.embedding, categoryName, roleId);
 
-    const history = await Message.find({ chatId })
+    const history = await Message.find({ agentUserId })
         .sort({ createdAt: -1 })
         .limit(HISTORY_LIMIT)
         .lean()
         .then(msgs => msgs.reverse());
 
-    await Message.create({ agentUserId, chatId, role: 'user', content: userMessage, category: categoryName });
+    await Message.create({ agentUserId, role: 'user', content: userMessage, category: categoryName });
 
     const responseAgent = await generateResponse(userMessage, chunks, history);
 
-    await Message.create({ agentUserId, chatId, role: 'assistant', content: responseAgent, category: categoryName });
+    await Message.create({ agentUserId, role: 'assistant', content: responseAgent, category: categoryName });
 
 //     const responseText = `Категория запроса: ${categoryName}.
 // Ваша роль: ${agentUser.role.name}

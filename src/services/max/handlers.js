@@ -9,6 +9,7 @@ function extractPhoneFromVcf(vcf) {
 
 async function onMessage(message, bot) {
     const userId = message.sender.user_id;
+    const chatIdMAX = String(userId);
     const chatId = message.recipient.chat_id;
     const text = message.body?.text || '';
 
@@ -17,10 +18,11 @@ async function onMessage(message, bot) {
         const vcf = contactAttachment.payload?.vcf_info || '';
         const phone = extractPhoneFromVcf(vcf);
         if (phone) {
-            const existing = await AgentUser.findOne({
-                $or: [{ chatId: String(userId), messenger: 'max' }, { phone }]
-            });
+            const existing = await AgentUser.findOne({ $or: [{ chatIdMAX }, { phone }] });
             if (existing) {
+                if (!existing.chatIdMAX) {
+                    await AgentUser.findByIdAndUpdate(existing._id, { chatIdMAX });
+                }
                 const text = existing.role
                     ? 'Вы уже зарегистрированы и можете использовать ИИ-агента.'
                     : 'Вы уже зарегистрированы. Дождитесь когда вам разрешат использовать ИИ агента.';
@@ -28,8 +30,7 @@ async function onMessage(message, bot) {
             }
             const nameParts = (message.sender.name || '').trim().split(' ');
             await AgentUser.create({
-                chatId: String(userId),
-                messenger: 'max',
+                chatIdMAX,
                 phone,
                 firstName: nameParts[0] || '',
                 lastName: nameParts.slice(1).join(' ') || ''
@@ -39,13 +40,13 @@ async function onMessage(message, bot) {
     }
 
     if (text === '/start') {
-        const user = await AgentUser.findOne({ chatId: String(userId), messenger: 'max' }).populate('role');
+        const user = await AgentUser.findOne({ chatIdMAX }).populate('role');
         if (!user)      return bot.sendMessageToChat(chatId, 'Добро пожаловать! Чтобы получить доступ к ИИ-агенту, поделитесь своим номером телефона.', [kb.phoneRequest]);
         if (!user.role) return bot.sendMessageToChat(chatId, 'У вас пока что нет прав доступа, дождитесь когда вам разрешат использовать ИИ агента.');
         return bot.sendMessageToChat(chatId, 'Вы можете использовать ИИ-агента. Напишите ваш вопрос.');
     }
 
-    const user = await AgentUser.findOne({ chatId: String(userId), messenger: 'max' }).populate('role');
+    const user = await AgentUser.findOne({ chatIdMAX }).populate('role');
 
     if (!user)      return bot.sendMessageToChat(chatId, 'Чтобы получить доступ к ИИ-агенту, поделитесь своим номером телефона.', [kb.phoneRequest]);
     if (!user.role) return bot.sendMessageToChat(chatId, 'У вас пока что нет прав доступа, дождитесь когда вам разрешат использовать ИИ агента.');
@@ -57,13 +58,17 @@ async function onMessage(message, bot) {
 
 async function onCallback(callback, bot) {
     const userId = callback.user.user_id;
+    const chatIdMAX = String(userId);
     const chatId = callback.message?.recipient?.chat_id || userId;
     const phone = callback.payload;
 
     if (!phone || !String(phone).startsWith('+')) return;
 
-    const existing = await AgentUser.findOne({ chatId: String(userId), messenger: 'max' });
+    const existing = await AgentUser.findOne({ $or: [{ chatIdMAX }, { phone: String(phone) }] });
     if (existing) {
+        if (!existing.chatIdMAX) {
+            await AgentUser.findByIdAndUpdate(existing._id, { chatIdMAX });
+        }
         const text = existing.role
             ? 'Вы уже зарегистрированы и можете использовать ИИ-агента.'
             : 'Вы уже зарегистрированы. Дождитесь когда вам разрешат использовать ИИ агента.';
@@ -72,8 +77,7 @@ async function onCallback(callback, bot) {
 
     const nameParts = (callback.user.name || '').trim().split(' ');
     await AgentUser.create({
-        chatId: String(userId),
-        messenger: 'max',
+        chatIdMAX,
         phone: String(phone),
         firstName: nameParts[0] || '',
         lastName: nameParts.slice(1).join(' ') || ''

@@ -3,7 +3,8 @@ const successHandler = require('../../utils/success-handler');
 const errorHandler = require('../../utils/error-handler');
 const logHandler = require('../../utils/log-handler');
 const { ACTIONS_CONFIG } = require('../../constants/actions');
-const { getBot } = require('../../services/telegram/bot');
+const { getBot: getTGBot } = require('../../services/telegram/bot');
+const { getBot: getMAXBot } = require('../../services/max/bot');
 
 module.exports = async (req, res) => {
     const currentPlatformUserId = req.user?.id;
@@ -41,19 +42,23 @@ module.exports = async (req, res) => {
 
         await logHandler({
             action: ACTIONS_CONFIG.AGENT_USERS.actions.UPDATE.key,
-            message: `Обновлены данные пользователя: ${updatedAgentUser.chatId}`,
+            message: `Обновлены данные пользователя (ID: ${updatedAgentUser._id})`,
             userId: currentPlatformUserId,
             entityId: updatedAgentUser._id,
             status: 'success'
         });
 
-        if (roleWasNull && updatedAgentUser.role && updatedAgentUser.chatId) {
-            const bot = getBot();
-            if (bot) {
-                bot.sendMessage(
-                    updatedAgentUser.chatId,
-                    `Вам предоставлен доступ к ИИ-агенту. Напишите сообщение, чтобы начать.`
-                ).catch(() => {});
+        if (roleWasNull && updatedAgentUser.role) {
+            const notificationText = 'Вам предоставлен доступ к ИИ-агенту. Напишите сообщение, чтобы начать.';
+
+            if (updatedAgentUser.chatIdTG) {
+                const tgBot = getTGBot();
+                if (tgBot) tgBot.sendMessage(updatedAgentUser.chatIdTG, notificationText).catch(() => {});
+            }
+
+            if (updatedAgentUser.chatIdMAX) {
+                const maxBot = getMAXBot();
+                if (maxBot) maxBot.sendMessageToChat(updatedAgentUser.chatIdMAX, notificationText).catch(() => {});
             }
         }
 
