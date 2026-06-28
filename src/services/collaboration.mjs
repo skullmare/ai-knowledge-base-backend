@@ -10,6 +10,9 @@ const PlatformUser = platformUserModule;
 const { validateAccessToken } = authModule;
 const logger = loggerModule.default || loggerModule;
 
+const { ServerBlockNoteEditor } = await import('@blocknote/server-util');
+const sharedEditor = ServerBlockNoteEditor.create();
+
 const hocuspocusConfigured = new Hocuspocus().configure({
     debounce: 3000,
 
@@ -44,16 +47,14 @@ const hocuspocusConfigured = new Hocuspocus().configure({
     async onStoreDocument({ documentName, document, context }) {
         try {
             const binaryUpdate = Buffer.from(Y.encodeStateAsUpdate(document));
-            const { ServerBlockNoteEditor } = await import('@blocknote/server-util');
-            const editor = ServerBlockNoteEditor.create();
             const xmlFragment = document.getXmlFragment('document-store');
             let markdown = '';
             if (xmlFragment) {
-                const blocks = editor.yXmlFragmentToBlocks(xmlFragment);
-                markdown = await editor.blocksToMarkdownLossy(blocks);
+                const blocks = sharedEditor.yXmlFragmentToBlocks(xmlFragment);
+                markdown = await sharedEditor.blocksToMarkdownLossy(blocks);
             } else {
-                const blocks = editor.yDocToBlocks(document);
-                markdown = await editor.blocksToMarkdownLossy(blocks);
+                const blocks = sharedEditor.yDocToBlocks(document);
+                markdown = await sharedEditor.blocksToMarkdownLossy(blocks);
             }
 
             await Topic.findByIdAndUpdate(documentName, {
