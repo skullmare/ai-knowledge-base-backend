@@ -58,7 +58,7 @@ module.exports = async (req, res) => {
 
             if (updatedAgentUser.chatIdMAX) {
                 const maxBot = getMAXBot();
-                if (maxBot) maxBot.sendMessageToChat(updatedAgentUser.chatIdMAX, notificationText).catch(() => {});
+                if (maxBot) maxBot.sendMessageToUser(updatedAgentUser.chatIdMAX, notificationText).catch(() => {});
             }
         }
 
