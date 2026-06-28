@@ -1,7 +1,7 @@
 const crypto = require('crypto');
 const { qdrantClient } = require('../../../config/qdrant');
 const { deleteTopicFromQdrant } = require('./delete-chunk');
-const { getDoclingChunks } = require('../docling/hybrid-chunker');
+const { getMarkdownChunks } = require('../chunker/markdown-chunker');
 const { getEmbeddings } = require('../openrouter/get-embeddings');
 
 const { COLLECTION_NAME } = process.env;
@@ -14,7 +14,7 @@ async function syncTopicToQdrant(topic) {
 
     let content = `# ${topic.name}\n\n${topic.markdownContent}`;
 
-    const chunks = await getDoclingChunks(content);
+    const chunks = await getMarkdownChunks(content);
     const embeddings = await getEmbeddings(chunks);
 
     const points = embeddings.map((item, i) => ({
