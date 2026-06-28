@@ -15,8 +15,7 @@ module.exports = async (req, res) => {
             filter.$or = [
                 { firstName: { $regex: search, $options: 'i' } },
                 { lastName: { $regex: search, $options: 'i' } },
-                { phone: { $regex: search, $options: 'i' } },
-                { chatId: { $regex: search, $options: 'i' } }
+                { phone: { $regex: search, $options: 'i' } }
             ];
         }
 
@@ -47,13 +46,6 @@ module.exports = async (req, res) => {
                 .sort({ createdAt: -1 }),
             AgentUser.countDocuments(filter)
         ]);
-
-        await logHandler({
-            action: ACTIONS_CONFIG.AGENT_USERS.actions.READ.key,
-            message: `Получен список пользователей агента`,
-            userId: currentPlatformUserId,
-            status: 'success'
-        });
 
         const pagination = {
             total,

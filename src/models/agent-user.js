@@ -14,15 +14,15 @@ const agentUserSchema = new mongoose.Schema({
         unique: true,
         sparse: true
     },
-    chatId: {
+    chatIdTG: {
         type: String,
-        required: true,
-        index: true
+        index: true,
+        sparse: true
     },
-    messenger: {
+    chatIdMAX: {
         type: String,
-        enum: ['telegram', 'max'],
-        default: 'telegram'
+        index: true,
+        sparse: true
     },
     requestsCount: {
         type: Number,
@@ -46,7 +46,8 @@ const agentUserSchema = new mongoose.Schema({
     timestamps: true
 });
 
-agentUserSchema.index({ chatId: 1, messenger: 1 }, { unique: true });
+agentUserSchema.index({ chatIdTG: 1 }, { unique: true, sparse: true });
+agentUserSchema.index({ chatIdMAX: 1 }, { unique: true, sparse: true });
 
 agentUserSchema.virtual('fullName').get(function() {
     return `${this.firstName || ''} ${this.lastName || ''}`.trim();
