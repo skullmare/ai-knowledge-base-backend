@@ -18,8 +18,12 @@ module.exports = async (req, res) => {
             .populate('updatedBy', 'firstName lastName photoUrl')
             .select('+markdownContent');
 
+        if (topic.status === 'approved') {
+            return errorHandler(res, 409, 'Тема уже одобрена', [{ path: 'status', message: 'Тема уже имеет статус approved' }]);
+        }
+
         await syncTopicToQdrant(topic);
-        
+
         topic.status = 'approved';
         topic.vectorData = { 
             ...topic.vectorData, 
