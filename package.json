@@ -26,6 +26,7 @@
     "@blocknote/react": "^0.48.1",
     "@blocknote/server-util": "^0.48.1",
     "@hocuspocus/server": "^3.4.4",
+    "@langchain/textsplitters": "^1.0.1",
     "@maxhub/max-bot-api": "^0.2.3",
     "@openrouter/sdk": "^0.9.11",
     "@qdrant/js-client-rest": "^1.17.0",
