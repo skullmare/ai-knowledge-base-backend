@@ -1,32 +1,44 @@
 const { chat } = require('../openrouter/chat');
 const logger = require('../../utils/logger');
 
-const RESPONSE_SCHEMA = `{
-  "textMessage": "текст ответа пользователю",
-  "files": [
-    { "url": "https://...", "name": "название файла или ссылки" }
-  ]
-}`;
+const RESPONSE_FORMAT = {
+    type: 'json_schema',
+    json_schema: {
+        name: 'agent_response',
+        strict: true,
+        schema: {
+            type: 'object',
+            properties: {
+                textMessage: {
+                    type: 'string',
+                    description: 'Текст ответа пользователю без ссылок и URL',
+                },
+                files: {
+                    type: 'array',
+                    description: 'Ссылки и файлы из контекста, относящиеся к ответу',
+                    items: {
+                        type: 'object',
+                        properties: {
+                            url:  { type: 'string', description: 'URL файла или ссылки' },
+                            name: { type: 'string', description: 'Название файла или ссылки' },
+                        },
+                        required: ['url', 'name'],
+                        additionalProperties: false,
+                    },
+                },
+            },
+            required: ['textMessage', 'files'],
+            additionalProperties: false,
+        },
+    },
+};
 
 async function generateResponse(userMessage, chunks, history) {
     const context = chunks.map((h, i) => `[${i + 1}] ${h.payload.text}`).join('\n\n');
 
     const systemPrompt = context
-        ? `Ты ИИ-агент корпоративной базы знаний. Отвечай строго на основе контекста. Если ответа нет — скажи об этом честно.
-
-Ты ОБЯЗАН вернуть ответ строго в формате JSON без каких-либо пояснений вне JSON:
-${RESPONSE_SCHEMA}
-
-Правила:
-- В "textMessage" пиши чистый текст ответа без ссылок и URL.
-- В "files" помещай ВСЕ ссылки и файлы из контекста, которые относятся к ответу. Если ссылок нет — оставь пустой массив.
-- Не дублируй ссылки в textMessage.
-
-Контекст:\n${context}`
-        : `Ты ИИ-агент корпоративной базы знаний. По данному запросу информации не найдено — сообщи об этом вежливо.
-
-Вернуть строго JSON:
-${RESPONSE_SCHEMA}`;
+        ? `Ты ИИ-агент корпоративной базы знаний. Отвечай строго на основе контекста. Если ответа нет — скажи об этом честно. В поле textMessage пиши текст без ссылок, все ссылки и файлы из контекста выноси в поле files.\n\nКонтекст:\n${context}`
+        : 'Ты ИИ-агент корпоративной базы знаний. По данному запросу информации не найдено — сообщи об этом вежливо.';
 
     const raw = await chat(
         [
@@ -34,7 +46,7 @@ ${RESPONSE_SCHEMA}`;
             ...history.map(m => ({ role: m.role, content: m.content })),
             { role: 'user', content: userMessage }
         ],
-        { response_format: { type: 'json_object' } }
+        { response_format: RESPONSE_FORMAT }
     );
 
     try {
