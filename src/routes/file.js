@@ -23,4 +23,16 @@ router.post(
     fileController.uploadFile
 );
 
+router.post(
+    '/presigned-url',
+    auth,
+    fileController.getPresignedUrl
+);
+
+router.post(
+    '/presigned-complete',
+    auth,
+    fileController.confirmUpload
+);
+
 module.exports = router;
