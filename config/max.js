@@ -1,4 +1,16 @@
 const axios = require('axios');
+const FormData = require('form-data');
+
+const EXT_TYPE_MAP = {
+    mp4: 'video', mov: 'video', avi: 'video', webm: 'video',
+    mp3: 'audio', ogg: 'audio', wav: 'audio', aac: 'audio',
+    jpg: 'image', jpeg: 'image', png: 'image', gif: 'image', webp: 'image'
+};
+
+function detectAttachmentType(url) {
+    const ext = url.split('?')[0].split('.').pop().toLowerCase();
+    return EXT_TYPE_MAP[ext] || 'file';
+}
 
 const BASE_URL = 'https://botapi.max.ru';
 
@@ -23,8 +35,10 @@ const create = (token) => {
         },
 
         async uploadFileFromUrl(fileUrl) {
-            const { data: uploadData } = await axios.get(`${BASE_URL}/uploads`, {
-                params: { type: 'file' },
+            const attachmentType = detectAttachmentType(fileUrl);
+
+            const { data: uploadData } = await axios.post(`${BASE_URL}/uploads`, null, {
+                params: { type: attachmentType },
                 headers
             });
             const uploadUrl = uploadData.url;
@@ -33,14 +47,14 @@ const create = (token) => {
             const contentType = fileResponse.headers['content-type'] || 'application/octet-stream';
             const fileName = fileUrl.split('/').pop().split('?')[0] || 'file';
 
-            const { data: uploadResult } = await axios.post(uploadUrl, fileResponse.data, {
-                headers: {
-                    'Content-Type': contentType,
-                    'Content-Disposition': `attachment; filename="${fileName}"`
-                }
+            const form = new FormData();
+            form.append('data', Buffer.from(fileResponse.data), { filename: fileName, contentType });
+
+            const { data: uploadResult } = await axios.post(uploadUrl, form, {
+                headers: form.getHeaders()
             });
 
-            return { type: 'file', payload: { token: uploadResult.token } };
+            return { type: attachmentType, payload: { token: uploadResult.token } };
         },
 
         async sendMessageToUser(userId, text, attachments = []) {
