@@ -1,5 +1,6 @@
 const AgentUser = require('../../models/agent-user');
 const { processMessage } = require('../agent');
+const { formatForMax } = require('../../utils/format-for-max');
 const kb = require('./keyboards');
 
 function extractPhoneFromVcf(vcf) {
@@ -56,7 +57,8 @@ async function onMessage(message, bot) {
     await bot.sendTyping(chatId);
     try {
         const response = await processMessage(user, text);
-        return bot.sendMessageToChat(chatId, response);
+        const { text: formattedText, attachments } = formatForMax(response);
+        return bot.sendMessageToChat(chatId, formattedText, attachments);
     } catch (err) {
         return bot.sendMessageToChat(chatId, 'Произошла ошибка при обработке вашего запроса. Попробуйте ещё раз позже.');
     }
