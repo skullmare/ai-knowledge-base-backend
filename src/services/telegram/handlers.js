@@ -16,8 +16,9 @@ async function onMessage(msg) {
 
     const user = await AgentUser.findOne({ chatIdTG }).populate('role');
 
-    if (!user)      return bot.sendMessage(chatIdTG, 'Чтобы получить доступ к ИИ-агенту, поделитесь своим номером телефона.', kb.phoneRequest);
-    if (!user.role) return bot.sendMessage(chatIdTG, 'У вас пока что нет прав доступа, дождитесь когда вам разрешат использовать ИИ агента.');
+    if (!user)                      return bot.sendMessage(chatIdTG, 'Чтобы получить доступ к ИИ-агенту, поделитесь своим номером телефона.', kb.phoneRequest);
+    if (user.status === 'blocked')  return bot.sendMessage(chatIdTG, 'Ваш аккаунт заблокирован. Обратитесь к администратору.');
+    if (!user.role)                 return bot.sendMessage(chatIdTG, 'У вас пока что нет прав доступа, дождитесь когда вам разрешат использовать ИИ агента.');
 
     await AgentUser.findByIdAndUpdate(user._id, { lastActivity: new Date(), $inc: { requestsCount: 1 } });
     await bot.sendChatAction(chatIdTG, 'typing');
