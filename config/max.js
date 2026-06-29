@@ -22,6 +22,27 @@ const create = (token) => {
             return data.updates || [];
         },
 
+        async uploadFileFromUrl(fileUrl) {
+            const { data: uploadData } = await axios.get(`${BASE_URL}/uploads`, {
+                params: { type: 'file' },
+                headers
+            });
+            const uploadUrl = uploadData.url;
+
+            const fileResponse = await axios.get(fileUrl, { responseType: 'arraybuffer' });
+            const contentType = fileResponse.headers['content-type'] || 'application/octet-stream';
+            const fileName = fileUrl.split('/').pop().split('?')[0] || 'file';
+
+            const { data: uploadResult } = await axios.post(uploadUrl, fileResponse.data, {
+                headers: {
+                    'Content-Type': contentType,
+                    'Content-Disposition': `attachment; filename="${fileName}"`
+                }
+            });
+
+            return { type: 'file', payload: { token: uploadResult.token } };
+        },
+
         async sendMessageToUser(userId, text, attachments = []) {
             const body = { text };
             if (attachments.length) body.attachments = attachments;
