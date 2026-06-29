@@ -23,8 +23,15 @@ async function onMessage(msg) {
     await AgentUser.findByIdAndUpdate(user._id, { lastActivity: new Date(), $inc: { requestsCount: 1 } });
     await bot.sendChatAction(chatIdTG, 'typing');
     try {
-        const response = await processMessage(user, msg.text);
-        return bot.sendMessage(chatIdTG, response);
+        const { textMessage, files } = await processMessage(user, msg.text);
+        await bot.sendMessage(chatIdTG, textMessage);
+        for (const file of files) {
+            await bot.sendMessage(chatIdTG, file.url, {
+                reply_markup: {
+                    inline_keyboard: [[{ text: file.name, url: file.url }]]
+                }
+            });
+        }
     } catch (err) {
         return bot.sendMessage(chatIdTG, 'Произошла ошибка при обработке вашего запроса. Попробуйте ещё раз позже.');
     }
