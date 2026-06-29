@@ -22,7 +22,12 @@ async function onMessage(msg) {
 
     await AgentUser.findByIdAndUpdate(user._id, { lastActivity: new Date(), $inc: { requestsCount: 1 } });
     await bot.sendChatAction(chatIdTG, 'typing');
-    return bot.sendMessage(chatIdTG, await processMessage(user, msg.text));
+    try {
+        const response = await processMessage(user, msg.text);
+        return bot.sendMessage(chatIdTG, response);
+    } catch (err) {
+        return bot.sendMessage(chatIdTG, 'Произошла ошибка при обработке вашего запроса. Попробуйте ещё раз позже.');
+    }
 }
 
 async function onContact(msg) {
