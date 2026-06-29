@@ -54,7 +54,12 @@ async function onMessage(message, bot) {
 
     await AgentUser.findByIdAndUpdate(user._id, { lastActivity: new Date(), $inc: { requestsCount: 1 } });
     await bot.sendTyping(chatId);
-    return bot.sendMessageToChat(chatId, await processMessage(user, text));
+    try {
+        const response = await processMessage(user, text);
+        return bot.sendMessageToChat(chatId, response);
+    } catch (err) {
+        return bot.sendMessageToChat(chatId, 'Произошла ошибка при обработке вашего запроса. Попробуйте ещё раз позже.');
+    }
 }
 
 async function onCallback(callback, bot) {
