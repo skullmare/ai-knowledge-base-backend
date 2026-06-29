@@ -24,7 +24,7 @@ async function processMessage(agentUser, userMessage) {
     // Stage 1: rewrite the user query using conversation context for better vector search recall
     let searchQuery = userMessage;
     try {
-        searchQuery = await rewriteQuery(userMessage, history);
+        searchQuery = await rewriteQuery(userMessage, history.slice(-5));
         logger.debug(`[Agent] Переформулированный запрос: ${searchQuery}`);
     } catch (err) {
         logger.error('[Agent] Ошибка переформулирования запроса, используем оригинал', null, err.message);
