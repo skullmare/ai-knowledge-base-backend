@@ -33,11 +33,15 @@ async function generateResponse(userMessage, chunks, history) {
         RESPONSE_FORMAT
     );
 
-    const parsed = JSON.parse(raw);
-    return {
-        messageText: parsed.messageText || '',
-        fileUrls: Array.isArray(parsed.fileUrls) ? parsed.fileUrls : []
-    };
+    try {
+        const parsed = JSON.parse(raw);
+        return {
+            messageText: parsed.messageText || '',
+            fileUrls: Array.isArray(parsed.fileUrls) ? parsed.fileUrls : []
+        };
+    } catch {
+        return { messageText: raw, fileUrls: [] };
+    }
 }
 
 module.exports = { generateResponse };
