@@ -55,9 +55,8 @@ async function onMessage(message, bot) {
     await AgentUser.findByIdAndUpdate(user._id, { lastActivity: new Date(), $inc: { requestsCount: 1 } });
     await bot.sendTyping(chatId);
     try {
-        const { textMessage, files } = await processMessage(user, text);
-        const attachments = files.map(f => ({ type: 'link', payload: { url: f.url, title: f.name } }));
-        return bot.sendMessageToChat(chatId, textMessage, attachments);
+        const response = await processMessage(user, text);
+        return bot.sendMessageToChat(chatId, response);
     } catch (err) {
         return bot.sendMessageToChat(chatId, 'Произошла ошибка при обработке вашего запроса. Попробуйте ещё раз позже.');
     }
