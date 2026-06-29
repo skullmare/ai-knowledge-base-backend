@@ -43,7 +43,11 @@ module.exports = async (req, res) => {
 
     res.cookie('refreshToken', refreshToken, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production'
+        secure: true,
+        sameSite: 'none',
+        path: '/',
+        domain: process.env.MAIN_DOMAIN,
+        expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
     });
 
     return successHandler(res, 200, 'Токен успешно обновлен', { accessToken });
