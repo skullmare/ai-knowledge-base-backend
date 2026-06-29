@@ -1,6 +1,5 @@
 const AgentUser = require('../../models/agent-user');
 const { processMessage } = require('../agent');
-const { formatForTelegram } = require('../../utils/format-for-telegram');
 const kb = require('./keyboards');
 const { get: getBot } = require('../../../config/telegram');
 
@@ -25,7 +24,7 @@ async function onMessage(msg) {
     await bot.sendChatAction(chatIdTG, 'typing');
     try {
         const response = await processMessage(user, msg.text);
-        return bot.sendMessage(chatIdTG, formatForTelegram(response), { parse_mode: 'HTML' });
+        return bot.sendMessage(chatIdTG, response);
     } catch (err) {
         return bot.sendMessage(chatIdTG, 'Произошла ошибка при обработке вашего запроса. Попробуйте ещё раз позже.');
     }
