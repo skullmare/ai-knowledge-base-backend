@@ -65,7 +65,7 @@ async function processMessage(agentUser, userMessage) {
         throw err;
     }
 
-    await Message.create({ agentUserId, role: 'assistant', content: responseAgent.messageText, category: categoryName });
+    await Message.create({ agentUserId, role: 'assistant', content: responseAgent, category: categoryName });
 
     return responseAgent;
 }

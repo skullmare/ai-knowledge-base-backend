@@ -1,7 +1,6 @@
 const AgentUser = require('../../models/agent-user');
 const { processMessage } = require('../agent');
 const kb = require('./keyboards');
-const logger = require('../../utils/logger');
 
 function extractPhoneFromVcf(vcf) {
     const match = vcf.match(/TEL[^:]*:(\+?\d+)/);
@@ -56,25 +55,8 @@ async function onMessage(message, bot) {
     await AgentUser.findByIdAndUpdate(user._id, { lastActivity: new Date(), $inc: { requestsCount: 1 } });
     await bot.sendTyping(chatId);
     try {
-        const { messageText, fileUrls } = await processMessage(user, text);
-
-        logger.debug('[MaxBot] fileUrls from agent:', JSON.stringify(fileUrls));
-
-        let attachments = [];
-        if (fileUrls.length > 0) {
-            const results = await Promise.allSettled(fileUrls.map(url => bot.uploadFileFromUrl(url)));
-            results.forEach((r, i) => {
-                if (r.status === 'rejected') {
-                    const detail = r.reason?.response?.data ? JSON.stringify(r.reason.response.data) : r.reason?.message;
-                    logger.error(`[MaxBot] Ошибка загрузки файла [${fileUrls[i]}]`, null, detail);
-                }
-            });
-            attachments = results.filter(r => r.status === 'fulfilled').map(r => r.value);
-        }
-
-        logger.debug('[MaxBot] attachments to send:', JSON.stringify(attachments));
-
-        return bot.sendMessageToChat(chatId, messageText, attachments);
+        const response = await processMessage(user, text);
+        return bot.sendMessageToChat(chatId, response);
     } catch (err) {
         return bot.sendMessageToChat(chatId, 'Произошла ошибка при обработке вашего запроса. Попробуйте ещё раз позже.');
     }
