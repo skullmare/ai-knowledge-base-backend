@@ -28,6 +28,22 @@ const loginIsUnique = (currentUserId = null) => async (login, ctx) => {
     }
 };
 
+const emailIsUnique = (currentUserId = null) => async (email, ctx) => {
+    const query = { email: email.toLowerCase() };
+    if (currentUserId) {
+        query._id = { $ne: currentUserId };
+    }
+
+    const exists = await mongoose.model('PlatformUser').exists(query);
+    if (exists) {
+        ctx.addIssue({
+            code: 'custom',
+            path: ['body', 'email'],
+            message: 'Этот email уже занят другим пользователем'
+        });
+    }
+};
+
 const createUserSchema = z.object({
     body: z.object({
         firstName: z.string("Имя обязательно").trim().min(1, "Поле имени не может быть пустым").max(50, "Максимальная длинна имени 50 символов"),
@@ -38,7 +54,7 @@ const createUserSchema = z.object({
             .max(30, "Логин должен быть не более 30 символов")
             .transform(val => val.toLowerCase())
             .superRefine(loginIsUnique()),
-        email: z.email("Некорректный формат email"),
+        email: z.email("Некорректный формат email").superRefine(emailIsUnique()),
         role: objectId.pipe(z.string("Роль обязательна").superRefine(dbExists('PlatformRole'))),
         photoUrl: z.string().url("Некорректная ссылка на фото").optional().or(z.literal('')),
         status: z.enum(['active', 'blocked'], "Недопустимый статус. Доступны: active, blocked").default('active')
@@ -86,6 +102,10 @@ const updateUserSchema = z.object({
 
     if (data.body.login) {
         await loginIsUnique(data.params.id)(data.body.login, ctx);
+    }
+
+    if (data.body.email) {
+        await emailIsUnique(data.params.id)(data.body.email, ctx);
     }
 });
 
