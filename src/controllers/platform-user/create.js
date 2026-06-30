@@ -52,6 +52,25 @@ module.exports = async (req, res) => {
         return successHandler(res, 201, 'Сотрудник успешно создан', responseData);
 
     } catch (error) {
+        if (error.code === 11000) {
+            const duplicatedField = Object.keys(error.keyValue || {})[0] || 'поле';
+            const duplicatedValue = error.keyValue?.[duplicatedField] || '';
+
+            await logHandler({
+                action: ACTIONS_CONFIG.PLATFORM_USERS.actions.SERVER_ERROR.key,
+                message: `Попытка создать сотрудника с уже существующим ${duplicatedField}: ${duplicatedValue}`,
+                userId: currentPlatformUserId,
+                status: 'error'
+            });
+
+            return errorHandler(
+                res,
+                409,
+                `Сотрудник с таким ${duplicatedField} уже существует`,
+                [{ path: duplicatedField, message: `Значение "${duplicatedValue}" уже занято` }]
+            );
+        }
+
         await logHandler({
             action: ACTIONS_CONFIG.PLATFORM_USERS.actions.SERVER_ERROR.key,
             message: `Ошибка при создании сотрудника: ${error.message}`,
