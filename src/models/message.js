@@ -16,10 +16,7 @@ const messageSchema = new mongoose.Schema({
         type: String,
         required: true
     },
-    category: {
-        type: String,
-        default: null
-    }
+
 }, {
     timestamps: true
 });
