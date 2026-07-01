@@ -1,9 +1,6 @@
-const TopicCategory = require('../../models/topic-category');
-const Topic = require('../../models/topic');
 const Message = require('../../models/message');
 const { getEmbeddings } = require('../openrouter/get-embeddings');
 const { rewriteQuery } = require('./rewrite-query');
-const { classifyCategory } = require('./classify');
 const { searchChunks } = require('./search');
 const { generateResponse } = require('./respond');
 const logger = require('../../utils/logger');
@@ -40,21 +37,16 @@ async function processMessage(agentUser, userMessage) {
         throw err;
     }
 
-    // Classify category by rewritten query
-    const usedCategoryIds = await Topic.distinct('metadata.category');
-    const categories = await TopicCategory.find({ _id: { $in: usedCategoryIds } }).lean();
-    const categoryName = await classifyCategory(searchQuery, categories);
-
     // Search vector DB with the rewritten query embedding
     let chunks;
     try {
-        chunks = await searchChunks(embedding.embedding, categoryName, roleId);
+        chunks = await searchChunks(embedding.embedding, roleId);
     } catch (err) {
         logger.error('[Agent] Ошибка поиска в Qdrant', null, err.message);
         throw err;
     }
 
-    await Message.create({ agentUserId, role: 'user', content: userMessage, category: categoryName });
+    await Message.create({ agentUserId, role: 'user', content: userMessage });
 
     // Stage 2: generate the final response using original question + retrieved context
     let responseAgent;
@@ -65,7 +57,7 @@ async function processMessage(agentUser, userMessage) {
         throw err;
     }
 
-    await Message.create({ agentUserId, role: 'assistant', content: responseAgent, category: categoryName });
+    await Message.create({ agentUserId, role: 'assistant', content: responseAgent });
 
     return responseAgent;
 }
