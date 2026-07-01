@@ -26,6 +26,9 @@ const hocuspocusConfigured = new Hocuspocus().configure({
         if (!hasTopicsRead) {
             throw new Error('Нет доступа к чтению тем');
         }
+        if (user.status === 'blocked') {
+            throw new Error('Пользователь заблокирован');
+        }
         context.user = {
             ...userData,
             hasTopicsUpdate
