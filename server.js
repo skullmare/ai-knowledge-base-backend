@@ -6,6 +6,7 @@ const { seedAgentRoles } = require('./src/init/agent-role');
 const { seedSuperAdmin } = require('./src/init/super-admin');
 const { seedSystemSettings } = require('./src/init/system-settings');
 const { seedTopicCategories } = require('./src/init/topic-category');
+const { syncAgentUserIndexes } = require('./src/init/agent-user-index');
 const { initQdrant } = require('./src/init/qdrant');
 const { initHocuspocus } = require('./src/services/init-collaboration');
 const { initBot } = require('./src/services/telegram/bot');
@@ -24,6 +25,7 @@ const startServer = async () => {
     // await seedSystemSettings();
     // await seedTopicCategories();
     await seedSuperAdmin();
+    await syncAgentUserIndexes();
     await initQdrant();
     await initHocuspocus();
     initBot();
