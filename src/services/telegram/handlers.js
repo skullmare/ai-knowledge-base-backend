@@ -1,5 +1,7 @@
 const AgentUser = require('../../models/agent-user');
 const { processMessage } = require('../agent');
+const { registerAgentUser } = require('../agent-user/register');
+const logger = require('../../utils/logger');
 const kb = require('./keyboards');
 const { get: getBot } = require('../../../config/telegram');
 
@@ -38,25 +40,30 @@ async function onContact(msg) {
     if (String(contact.user_id) !== String(msg.from.id))
         return bot.sendMessage(chatIdTG, 'Пожалуйста, поделитесь своим собственным номером телефона.', kb.phoneRequest);
 
-    const existing = await AgentUser.findOne({ $or: [{ chatIdTG }, { phone: contact.phone_number }] });
-    if (existing) {
-        if (!existing.chatIdTG) {
-            await AgentUser.findByIdAndUpdate(existing._id, { chatIdTG });
-        }
-        const text = existing.role
-            ? 'Вы уже зарегистрированы и можете использовать ИИ-агента.'
-            : 'Вы уже зарегистрированы. Дождитесь когда вам разрешат использовать ИИ агента.';
-        return bot.sendMessage(chatIdTG, text, kb.remove);
+    let result;
+    try {
+        result = await registerAgentUser({
+            field: 'chatIdTG',
+            chatId: chatIdTG,
+            phone: contact.phone_number,
+            firstName: contact.first_name || msg.from.first_name,
+            lastName: contact.last_name || msg.from.last_name || ''
+        });
+    } catch (err) {
+        logger.error('[TelegramBot] Ошибка регистрации пользователя', null, err.message);
+        return bot.sendMessage(chatIdTG, 'Не удалось завершить регистрацию. Попробуйте ещё раз позже или обратитесь к администратору.', kb.remove);
     }
 
-    await AgentUser.create({
-        chatIdTG,
-        phone: contact.phone_number,
-        firstName: contact.first_name || msg.from.first_name,
-        lastName: contact.last_name || msg.from.last_name || ''
-    });
+    if (result.status === 'invalid')
+        return bot.sendMessage(chatIdTG, 'Не удалось определить ваш номер телефона. Попробуйте поделиться контактом ещё раз.', kb.phoneRequest);
 
-    return bot.sendMessage(chatIdTG, 'Спасибо! Вы успешно зарегистрированы. Дождитесь когда администратор предоставит вам доступ к ИИ-агенту.', kb.remove);
+    if (result.status === 'created')
+        return bot.sendMessage(chatIdTG, 'Спасибо! Вы успешно зарегистрированы. Дождитесь когда администратор предоставит вам доступ к ИИ-агенту.', kb.remove);
+
+    const text = result.user.role
+        ? 'Вы уже зарегистрированы и можете использовать ИИ-агента.'
+        : 'Вы уже зарегистрированы. Дождитесь когда вам разрешат использовать ИИ агента.';
+    return bot.sendMessage(chatIdTG, text, kb.remove);
 }
 
 module.exports = { onMessage, onContact };

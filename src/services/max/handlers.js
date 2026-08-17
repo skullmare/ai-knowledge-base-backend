@@ -1,10 +1,41 @@
 const AgentUser = require('../../models/agent-user');
 const { processMessage } = require('../agent');
+const { registerAgentUser } = require('../agent-user/register');
+const logger = require('../../utils/logger');
 const kb = require('./keyboards');
 
 function extractPhoneFromVcf(vcf) {
     const match = vcf.match(/TEL[^:]*:(\+?\d+)/);
     return match ? (match[1].startsWith('+') ? match[1] : '+' + match[1]) : null;
+}
+
+async function register({ bot, chatId, chatIdMAX, phone, name }) {
+    const nameParts = (name || '').trim().split(' ');
+
+    let result;
+    try {
+        result = await registerAgentUser({
+            field: 'chatIdMAX',
+            chatId: chatIdMAX,
+            phone,
+            firstName: nameParts[0] || '',
+            lastName: nameParts.slice(1).join(' ') || ''
+        });
+    } catch (err) {
+        logger.error('[MaxBot] Ошибка регистрации пользователя', null, err.message);
+        return bot.sendMessageToChat(chatId, 'Не удалось завершить регистрацию. Попробуйте ещё раз позже или обратитесь к администратору.');
+    }
+
+    if (result.status === 'invalid')
+        return bot.sendMessageToChat(chatId, 'Не удалось определить ваш номер телефона. Попробуйте поделиться контактом ещё раз.', [kb.phoneRequest]);
+
+    if (result.status === 'created')
+        return bot.sendMessageToChat(chatId, 'Спасибо! Вы успешно зарегистрированы. Дождитесь когда администратор предоставит вам доступ к ИИ-агенту.');
+
+    const text = result.user.role
+        ? 'Вы уже зарегистрированы и можете использовать ИИ-агента.'
+        : 'Вы уже зарегистрированы. Дождитесь когда вам разрешат использовать ИИ агента.';
+    return bot.sendMessageToChat(chatId, text);
 }
 
 async function onMessage(message, bot) {
@@ -18,24 +49,7 @@ async function onMessage(message, bot) {
         const vcf = contactAttachment.payload?.vcf_info || '';
         const phone = extractPhoneFromVcf(vcf);
         if (phone) {
-            const existing = await AgentUser.findOne({ $or: [{ chatIdMAX }, { phone }] });
-            if (existing) {
-                if (!existing.chatIdMAX) {
-                    await AgentUser.findByIdAndUpdate(existing._id, { chatIdMAX });
-                }
-                const text = existing.role
-                    ? 'Вы уже зарегистрированы и можете использовать ИИ-агента.'
-                    : 'Вы уже зарегистрированы. Дождитесь когда вам разрешат использовать ИИ агента.';
-                return bot.sendMessageToChat(chatId, text);
-            }
-            const nameParts = (message.sender.name || '').trim().split(' ');
-            await AgentUser.create({
-                chatIdMAX,
-                phone,
-                firstName: nameParts[0] || '',
-                lastName: nameParts.slice(1).join(' ') || ''
-            });
-            return bot.sendMessageToChat(chatId, 'Спасибо! Вы успешно зарегистрированы. Дождитесь когда администратор предоставит вам доступ к ИИ-агенту.');
+            return register({ bot, chatId, chatIdMAX, phone, name: message.sender.name });
         }
     }
 
@@ -70,26 +84,7 @@ async function onCallback(callback, bot) {
 
     if (!phone || !String(phone).startsWith('+')) return;
 
-    const existing = await AgentUser.findOne({ $or: [{ chatIdMAX }, { phone: String(phone) }] });
-    if (existing) {
-        if (!existing.chatIdMAX) {
-            await AgentUser.findByIdAndUpdate(existing._id, { chatIdMAX });
-        }
-        const text = existing.role
-            ? 'Вы уже зарегистрированы и можете использовать ИИ-агента.'
-            : 'Вы уже зарегистрированы. Дождитесь когда вам разрешат использовать ИИ агента.';
-        return bot.sendMessageToChat(chatId, text);
-    }
-
-    const nameParts = (callback.user.name || '').trim().split(' ');
-    await AgentUser.create({
-        chatIdMAX,
-        phone: String(phone),
-        firstName: nameParts[0] || '',
-        lastName: nameParts.slice(1).join(' ') || ''
-    });
-
-    return bot.sendMessageToChat(chatId, 'Спасибо! Вы успешно зарегистрированы. Дождитесь когда администратор предоставит вам доступ к ИИ-агенту.');
+    return register({ bot, chatId, chatIdMAX, phone: String(phone), name: callback.user.name });
 }
 
 module.exports = { onMessage, onCallback };
