@@ -2,6 +2,8 @@
 // часть модулей читает process.env на этапе загрузки.
 process.env.NODE_ENV = 'test';
 process.env.SUPPRESS_JEST_WARNINGS = 'true';
+// Тесты CORS должны опираться на явный список, а не на дефолт окружения.
+process.env.CORS_ORIGINS = 'http://localhost:5173';
 process.env.JWT_ACCESS_SECRET = 'test-access-secret';
 process.env.JWT_REFRESH_SECRET = 'test-refresh-secret';
 process.env.QDRANT_URL = 'http://localhost:6333';

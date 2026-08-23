@@ -27,7 +27,7 @@
 | --- | --- | --- |
 | `NODE_ENV` | `development` | `development` \| `test` \| `production` |
 | `PORT` | `3000` | Порт HTTP-сервера |
-| `CORS_ORIGINS` | dev: localhost:5173,5174 | Разрешённые origin через запятую |
+| `CORS_ORIGINS` | dev: `localhost:5173,5174`; иначе домен фронтенда | Разрешённые origin через запятую |
 | `MAIN_DOMAIN` | — | Домен refresh-куки |
 | `LOG_LEVEL` | `debug` | Уровень логирования |
 
@@ -125,4 +125,4 @@ docker run --env-file .env -p 3000:3000 knowledge-base-backend
 | Все темы «потеряли» индексацию | сменилась модель эмбеддингов; нужна переиндексация с новой коллекцией |
 | Не приходит код 2FA | проверьте SMTP и `EMAIL_FROM`; ошибки в `logs/error-*.log` |
 | Кука не сохраняется | в проде нужен HTTPS: `secure: true` и `sameSite: none` |
-| CORS блокирует фронтенд | добавьте домен в `CORS_ORIGINS` |
+| CORS блокирует фронтенд | домена нет в `CORS_ORIGINS`; при незаданной переменной действует список по умолчанию — проверьте, что домен совпадает |
