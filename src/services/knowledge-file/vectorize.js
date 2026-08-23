@@ -27,7 +27,7 @@ async function loadFileContent(file) {
  */
 async function vectorizeFile(file) {
     file.status = 'indexing';
-    file.vectorData.error = undefined;
+    file.vectorData = { ...(file.vectorData?.toObject?.() ?? file.vectorData ?? {}), error: undefined };
     await file.save();
 
     try {
@@ -47,8 +47,11 @@ async function vectorizeFile(file) {
         return chunksCount;
     } catch (error) {
         file.status = 'error';
-        file.vectorData.isIndexed = false;
-        file.vectorData.error = error.message;
+        file.vectorData = {
+            ...(file.vectorData?.toObject?.() ?? file.vectorData ?? {}),
+            isIndexed: false,
+            error: error.message,
+        };
         await file.save();
 
         throw error;
