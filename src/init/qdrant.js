@@ -1,13 +1,13 @@
 const { qdrantClient } = require('../../config/qdrant');
-const { getNumberSetting } = require('../services/settings');
 const { PAYLOAD_INDEXES } = require('../services/qdrant/recreate-collection');
+const { EMBEDDING_DIMENSIONS, EMBEDDING_MODEL } = require('../constants/ai');
 const logger = require('../utils/logger');
 
 const COLLECTION = process.env.COLLECTION_NAME || 'knowledge_base';
 
 async function initQdrant() {
     try {
-        const vectorSize = await getNumberSetting('ai_embedding_dimensions', 3072);
+        const vectorSize = EMBEDDING_DIMENSIONS;
 
         const collections = await qdrantClient.getCollections();
         const exists = collections.collections.some(c => c.name === COLLECTION);
@@ -26,9 +26,9 @@ async function initQdrant() {
 
             if (currentSize && currentSize !== vectorSize) {
                 logger.error(
-                    `Размерность коллекции ${COLLECTION} (${currentSize}) не совпадает с настройкой ` +
-                    `«Размерность векторов» (${vectorSize}). Векторизация будет падать — приведите ` +
-                    `настройку к размерности модели эмбеддингов или пересоздайте коллекцию.`
+                    `Размерность коллекции ${COLLECTION} (${currentSize}) не совпадает с размерностью ` +
+                    `модели ${EMBEDDING_MODEL} (${vectorSize}). Векторизация будет падать — пересоздайте ` +
+                    `коллекцию на вкладке «RouterAI» в настройках системы.`
                 );
             }
         }

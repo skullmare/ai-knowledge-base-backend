@@ -1,8 +1,8 @@
 const mongoose = require('mongoose');
 const { qdrantClient } = require('../../config/qdrant');
-const { checkDoclingHealth } = require('../services/docling/hybrid-chunker');
 const { listModels } = require('../services/ai/list-models');
-const { getSetting, getNumberSetting } = require('../services/settings');
+const { getSetting } = require('../services/settings');
+const { EMBEDDING_MODEL, EMBEDDING_DIMENSIONS } = require('../constants/ai');
 
 const COLLECTION = process.env.COLLECTION_NAME || 'knowledge_base';
 
@@ -31,12 +31,11 @@ const checkMongo = async () => {
 const checkQdrant = async () => {
     const info = await qdrantClient.getCollection(COLLECTION);
     const size = info?.config?.params?.vectors?.size;
-    const expected = await getNumberSetting('ai_embedding_dimensions', 3072);
 
-    if (size && size !== expected) {
+    if (size && size !== EMBEDDING_DIMENSIONS) {
         return {
             ok: false,
-            message: `Размерность коллекции ${size} не совпадает с настройкой (${expected}). Пересоздайте коллекцию на вкладке RouterAI.`,
+            message: `Размерность коллекции ${size} не совпадает с моделью ${EMBEDDING_MODEL} (${EMBEDDING_DIMENSIONS}). Пересоздайте коллекцию на вкладке RouterAI.`,
         };
     }
 
@@ -45,13 +44,10 @@ const checkQdrant = async () => {
 
 const checkRouterAi = async () => {
     const models = await listModels();
-    const [chatModel, embeddingModel] = await Promise.all([
-        getSetting('ai_chat_model'),
-        getSetting('ai_embedding_model'),
-    ]);
+    const chatModel = await getSetting('ai_chat_model');
 
     const known = new Set(models.map(m => m.id));
-    const missing = [chatModel, embeddingModel].filter(model => model && !known.has(model));
+    const missing = [chatModel, EMBEDDING_MODEL].filter(model => model && !known.has(model));
 
     return {
         ok: !missing.length,
@@ -69,7 +65,6 @@ const services = async (req, res) => {
     const checks = await Promise.all([
         probe('mongodb', checkMongo),
         probe('qdrant', checkQdrant),
-        probe('docling', checkDoclingHealth),
         probe('routerai', checkRouterAi),
     ]);
 

@@ -57,21 +57,6 @@ const SETTINGS_DEFINITIONS = [
         envFallback: 'ROUTER_AI_BASE_URL',
         description: 'Адрес OpenAI-совместимого API. Для OpenAI укажите https://api.openai.com/v1.',
     },
-    {
-        key: 'ai_embedding_model',
-        name: 'Модель эмбеддингов',
-        group: SETTINGS_GROUPS.AI,
-        value: 'google/gemini-embedding-2',
-        description: 'Модель, которой векторизуются темы и файлы базы знаний.',
-    },
-    {
-        key: 'ai_embedding_dimensions',
-        name: 'Размерность векторов',
-        group: SETTINGS_GROUPS.AI,
-        value: 3072,
-        description: 'Размерность эмбеддингов. Должна совпадать с размером коллекции Qdrant.',
-    },
-
     // ── Агент ───────────────────────────────────────────────────────────────
     {
         key: 'ai_chat_model',

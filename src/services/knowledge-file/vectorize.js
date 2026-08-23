@@ -1,6 +1,6 @@
 const { getObjectBuffer } = require('../yandex/S3/get-object');
 const { downloadDriveFile } = require('../google/download-file');
-const { extractChunks } = require('../extractor');
+const { buildSegments } = require('./build-segments');
 const { syncFileToQdrant } = require('../qdrant/sync-file');
 const { deleteFileFromQdrant } = require('../qdrant/delete-chunk');
 
@@ -32,8 +32,8 @@ async function vectorizeFile(file) {
 
     try {
         const { buffer, mimeType, filename } = await loadFileContent(file);
-        const chunks = await extractChunks(buffer, filename, mimeType);
-        const chunksCount = await syncFileToQdrant(file, chunks);
+        const prepared = await buildSegments(buffer, filename, mimeType);
+        const chunksCount = await syncFileToQdrant(file, prepared);
 
         file.status = 'indexed';
         file.vectorData = {
