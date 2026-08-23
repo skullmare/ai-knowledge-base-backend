@@ -4,6 +4,19 @@ const { buildSegments } = require('./build-segments');
 const { syncFileToQdrant } = require('../qdrant/sync-file');
 const { deleteFileFromQdrant } = require('../qdrant/delete-chunk');
 
+/**
+ * Помечает ошибку этапом. Без этого наружу уходит голое сообщение вроде
+ * «401 Missing Authentication header», по которому не понять, какой из трёх
+ * внешних сервисов отказал.
+ */
+const stage = async (label, fn) => {
+    try {
+        return await fn();
+    } catch (error) {
+        throw new Error(`${label}: ${error.message}`, { cause: error });
+    }
+};
+
 /** Забирает содержимое файла из его источника. */
 async function loadFileContent(file) {
     if (file.source === 'google_drive') {
@@ -31,8 +44,10 @@ async function vectorizeFile(file) {
     await file.save();
 
     try {
-        const { buffer, mimeType, filename } = await loadFileContent(file);
-        const prepared = await buildSegments(buffer, filename, mimeType);
+        const source = file.source === 'google_drive' ? 'Google Drive' : 'Хранилище файлов';
+
+        const { buffer, mimeType, filename } = await stage(source, () => loadFileContent(file));
+        const prepared = await stage('Подготовка файла', () => buildSegments(buffer, filename, mimeType));
         const chunksCount = await syncFileToQdrant(file, prepared);
 
         file.status = 'indexed';

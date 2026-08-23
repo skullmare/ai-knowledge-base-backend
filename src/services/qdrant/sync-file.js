@@ -6,6 +6,14 @@ const { EMBEDDING_LIMITS } = require('../../constants/ai');
 
 const COLLECTION = process.env.COLLECTION_NAME || 'knowledge_base';
 
+const stage = async (label, fn) => {
+    try {
+        return await fn();
+    } catch (error) {
+        throw new Error(`${label}: ${error.message}`, { cause: error });
+    }
+};
+
 /**
  * Кладёт сегменты файла в векторную базу, предварительно удалив прошлые.
  *
@@ -16,13 +24,16 @@ const COLLECTION = process.env.COLLECTION_NAME || 'knowledge_base';
 async function syncFileToQdrant(file, { kind, segments }) {
     const fileId = file._id.toString();
 
-    await deleteFileFromQdrant(fileId);
+    await stage('Qdrant', () => deleteFileFromQdrant(fileId));
 
     if (!segments.length) return 0;
 
     // Файлы уходят по одному: лимиты модели считаются на запрос, а не на вход
     const batchSize = kind === 'file' ? 1 : EMBEDDING_LIMITS.TEXT_BATCH;
-    const embeddings = await getEmbeddings(segments.map((s) => s.input), { batchSize });
+    const embeddings = await stage(
+        'Векторизация',
+        () => getEmbeddings(segments.map((s) => s.input), { batchSize })
+    );
 
     const roleIds = (file.accessibleByRoles || []).map((role) => (role._id ?? role).toString());
     const link = file.source === 'google_drive' ? file.google?.webViewLink : file.storage?.url;
@@ -42,7 +53,7 @@ async function syncFileToQdrant(file, { kind, segments }) {
         }
     }));
 
-    await qdrantClient.upsert(COLLECTION, { wait: true, points });
+    await stage('Qdrant', () => qdrantClient.upsert(COLLECTION, { wait: true, points }));
 
     return points.length;
 }

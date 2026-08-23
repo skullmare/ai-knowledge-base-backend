@@ -25,6 +25,17 @@ const updateSettingsSchema = z.object({
                         continue;
                     }
 
+                    // Секрет из одних пробелов непустой, но в заголовок
+                    // авторизации уходит пустым — не даём его сохранить
+                    if (SETTINGS_MAP[key].isSecret && typeof obj[key] === 'string' && obj[key].trim() === '') {
+                        ctx.addIssue({
+                            code: 'custom',
+                            path: [key],
+                            message: `«${SETTINGS_MAP[key].name}» не может состоять из одних пробелов`
+                        });
+                        continue;
+                    }
+
                     const bounds = NUMERIC_BOUNDS[key];
                     if (!bounds) continue;
 
