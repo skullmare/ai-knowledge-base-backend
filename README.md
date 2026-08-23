@@ -13,7 +13,8 @@
 * **Qdrant:** Высокопроизводительная векторная база данных для семантического поиска.
 * **MongoDB:** Основное хранилище метаданных и настроек системы.
 * **Yandex Cloud:** Объектное хранилище (S3) для физических файлов.
-* **OpenRouter:** Поставщик LLM моделей.
+* **RouterAI:** Поставщик LLM моделей и эмбеддингов (OpenAI-совместимый API).
+* **Google Drive:** Источник документов для базы знаний.
 * **Infrastructure:** Docker / Amvera (PaaS)
 
 ---
@@ -25,7 +26,7 @@
 * Установленный **Docker** и **Docker Compose**
 * Развернутые внешние сервисы **MongoDB**, **Qdrant**, **Docling**
 * **Node.js v18** или выше
-* Аккаунты в **Yandex Cloud** и **OpenRouter**
+* Аккаунты в **Yandex Cloud** и **RouterAI**
 
 ### 2. Клонирование репозитория
 
@@ -58,9 +59,16 @@ JWT_ACCESS_SECRET=your_access_secret
 JWT_REFRESH_SECRET=your_refresh_secret
 
 # AI & LLM
-OPENROUTER_MODEL=openai/text-embedding-3-small
-OPENROUTER_API_KEY=your_openrouter_key
+# Ключ и адрес RouterAI задаются в интерфейсе («Настройки системы» → RouterAI).
+# Переменные ниже используются только для первичного заполнения настроек при старте.
+ROUTER_AI_API_KEY=your_router_ai_key
+ROUTER_AI_BASE_URL=https://openrouter.ai/api/v1
 DOCLING_URL=http://localhost:5001
+
+# Google Drive (первичное заполнение настроек; далее — через интерфейс)
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+GOOGLE_REDIRECT_URI=http://localhost:5174/settings/google-callback
 
 # Cloud Storage (Yandex Cloud)
 YANDEX_ACCESS_KEY_ID=your_key_id
@@ -90,7 +98,30 @@ npm run dev
 
 ```
 
-### 6. Ссылка на документацию по API
+### 6. Настройка через интерфейс
+
+Ключи внешних сервисов больше не хранятся в коде — они задаются на странице
+**«Настройки системы»** и лежат в коллекции `systemsettings`:
+
+| Вкладка | Что настраивается | Право доступа |
+| --- | --- | --- |
+| **RouterAI** | API-ключ, базовый URL, модель эмбеддингов и размерность векторов | `system_settings.ai_provider` |
+| **Google Drive** | Client ID / Secret, Redirect URI, подключение аккаунта | `system_settings.google_drive` |
+| **Агент** | Модель ответов (из списка RouterAI) и промпты агента | `system_settings.agent` |
+
+**Векторизация.** По умолчанию используется модель `google/gemini-embedding-2`
+(3072 измерения). Размерность коллекции Qdrant задаётся настройкой
+«Размерность векторов»; при смене модели эмбеддингов коллекцию нужно
+пересоздать, иначе запись векторов будет падать — расхождение видно в логах
+при старте.
+
+**Загрузка файлов.** Файлы идут напрямую в S3 через presigned URL
+multipart-загрузки (`POST /api/v1/files/multipart/create` → `.../sign` →
+`.../complete`), тело файла через бэкенд не проходит. Для этого в CORS-политике
+бакета должен быть разрешён метод `PUT` и выставлен `ExposeHeaders: ["ETag"]` —
+иначе браузер не сможет прочитать ETag части и собрать файл.
+
+### 7. Ссылка на документацию по API
 
 [![Postman](https://img.shields.io/badge/Postman-FF6C37?style=for-the-badge&logo=postman&logoColor=white)](https://www.postman.com/rocketmind/rocketmind/documentation/33378290-e357ac2b-9202-4baf-8bb6-3f697af3f79f)
 

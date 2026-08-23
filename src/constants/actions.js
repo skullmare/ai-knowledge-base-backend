@@ -79,6 +79,30 @@ const ACTIONS_CONFIG = {
             DELETE: { key: 'SYSTEM_SETTING_DELETE', label: 'Удаление настройки' },
         }
     },
+    FILES: {
+        label: "Файлы базы знаний",
+        entity: 'KnowledgeFile',
+        category: 'FILES',
+        actions: {
+            CREATE: { key: 'KNOWLEDGE_FILE_CREATE', label: 'Добавление файла в базу знаний' },
+            UPDATE: { key: 'KNOWLEDGE_FILE_UPDATE', label: 'Изменение файла базы знаний' },
+            DELETE: { key: 'KNOWLEDGE_FILE_DELETE', label: 'Удаление файла базы знаний' },
+            VECTORIZE: { key: 'KNOWLEDGE_FILE_VECTORIZE', label: 'Векторизация файла' },
+            DEVECTORIZE: { key: 'KNOWLEDGE_FILE_DEVECTORIZE', label: 'Удаление файла из векторной базы' },
+            SERVER_ERROR: { key: 'KNOWLEDGE_FILE_ERROR', label: 'Ошибка в модуле файлов' },
+        }
+    },
+    GOOGLE_DRIVE: {
+        label: "Google Drive",
+        entity: 'System',
+        category: 'GOOGLE_DRIVE',
+        actions: {
+            CONNECT: { key: 'GOOGLE_DRIVE_CONNECT', label: 'Подключение Google Drive' },
+            DISCONNECT: { key: 'GOOGLE_DRIVE_DISCONNECT', label: 'Отключение Google Drive' },
+            IMPORT: { key: 'GOOGLE_DRIVE_IMPORT', label: 'Импорт файла из Google Drive' },
+            SERVER_ERROR: { key: 'GOOGLE_DRIVE_ERROR', label: 'Ошибка интеграции с Google Drive' },
+        }
+    },
     AUTH: {
         label: "Авторизация",
         entity: 'PlatformUser',

@@ -1,27 +1,31 @@
 const SystemSetting = require('../models/system-setting');
+const { SETTINGS_DEFINITIONS } = require('../constants/settings');
+const { invalidateSettingsCache } = require('../services/settings');
 const logger = require('../utils/logger');
 
-const defaultSettings = [
-    {
-        key: 'logs_ttl_days',
-        value: 30,
-        group: 'logs',
-        description: 'Срок хранения системных логов в днях.'
-    },
-    {
-        key: 'ai_chat_model',
-        value: 'google/gemini-3-flash-preview',
-        group: 'ai',
-        description: 'Основная модель для генерации ответов.'
-    }
-];
-
+/**
+ * Создаёт отсутствующие настройки со значениями по умолчанию.
+ * Уже сохранённые значения не перезаписываются.
+ */
 const seedSystemSettings = async () => {
     try {
-        for (const setting of defaultSettings) {
+        // Раньше поле name было уникальным — убираем устаревший индекс,
+        // иначе несколько настроек без имени конфликтуют между собой.
+        try {
+            await SystemSetting.collection.dropIndex('name_1');
+        } catch {
+            // индекса нет — это норма
+        }
+
+        for (const { key, name, group, value, isSecret = false, description, envFallback } of SETTINGS_DEFINITIONS) {
+            const initialValue = (envFallback && process.env[envFallback]) || value;
+
             await SystemSetting.findOneAndUpdate(
-                { key: setting.key },
-                { $setOnInsert: setting },
+                { key },
+                {
+                    $setOnInsert: { key, value: initialValue },
+                    $set: { name, group, isSecret, description }
+                },
                 {
                     upsert: true,
                     returnDocument: 'after',
@@ -30,6 +34,7 @@ const seedSystemSettings = async () => {
             );
         }
 
+        invalidateSettingsCache();
         logger.success('Инициализация системных настроек успешно завершена');
     } catch (error) {
         logger.error('Ошибка при сидировании настроек', null, error.message || error);

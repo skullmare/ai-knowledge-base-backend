@@ -1,13 +1,18 @@
-const { chat } = require('../openrouter/chat');
+const { chat } = require('../ai/chat');
+const { getSetting } = require('../settings');
 
 async function generateResponse(userMessage, chunks, history) {
     const context = chunks.map((h, i) => `[${i + 1}] ${h.payload.text}`).join('\n\n');
 
-    const linkRules = 'Правила оформления ссылок (обязательно):\n- Никогда не оборачивай ссылки в скобки, кавычки или другие символы.\n- Всегда размещай каждую ссылку на отдельной строке.\n- Текст после ссылки начинай с новой строки.\n- Пример правильного оформления:\nПодробнее здесь:\nhttps://example.com\nЭто описание источника.';
+    const [basePrompt, emptyPrompt, linkRules] = await Promise.all([
+        getSetting('agent_system_prompt'),
+        getSetting('agent_empty_context_prompt'),
+        getSetting('agent_link_rules_prompt'),
+    ]);
 
     const systemPrompt = context
-        ? `Ты ИИ-агент корпоративной базы знаний. Отвечай строго на основе контекста. Если ответа нет — скажи об этом честно.\n\nКонтекст:\n${context}\n\n${linkRules}`
-        : `Ты ИИ-агент корпоративной базы знаний. По данному запросу информации не найдено — сообщи об этом вежливо.\n\n${linkRules}`;
+        ? `${basePrompt}\n\nКонтекст:\n${context}\n\n${linkRules}`
+        : `${emptyPrompt}\n\n${linkRules}`;
 
     return chat([
         { role: 'system', content: systemPrompt },

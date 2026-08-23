@@ -1,42 +1,57 @@
 const { qdrantClient } = require('../../config/qdrant');
+const { getNumberSetting } = require('../services/settings');
 const logger = require('../utils/logger');
 
-async function initQdrant() {
-    const collectionName = "knowledge_base";
+const COLLECTION = process.env.COLLECTION_NAME || 'knowledge_base';
 
+const PAYLOAD_INDEXES = [
+    { field_name: 'metadata.category', field_schema: 'keyword' },
+    { field_name: 'metadata.accessibleByRoles', field_schema: 'keyword' },
+    { field_name: 'metadata.topicId', field_schema: 'keyword' },
+    { field_name: 'metadata.fileId', field_schema: 'keyword' },
+    { field_name: 'metadata.source', field_schema: 'keyword' },
+];
+
+async function initQdrant() {
     try {
+        const vectorSize = await getNumberSetting('ai_embedding_dimensions', 3072);
+
         const collections = await qdrantClient.getCollections();
-        const exists = collections.collections.some(c => c.name === collectionName);
+        const exists = collections.collections.some(c => c.name === COLLECTION);
 
         if (!exists) {
-            await qdrantClient.createCollection(collectionName, {
+            await qdrantClient.createCollection(COLLECTION, {
                 vectors: {
-                    size: 1536, 
+                    size: vectorSize,
                     distance: 'Cosine'
                 }
             });
-
-            await qdrantClient.createPayloadIndex(collectionName, {
-                field_name: "metadata.category",
-                field_schema: "keyword"
-            });
-
-            await qdrantClient.createPayloadIndex(collectionName, {
-                field_name: "metadata.accessibleByRoles",
-                field_schema: "keyword"
-            });
-
-            await qdrantClient.createPayloadIndex(collectionName, {
-                field_name: "metadata.topicId",
-                field_schema: "keyword"
-            });
-
-            logger.success(`Инициализация коллекции ${collectionName} и всех индексов завершена`);
+            logger.success(`Коллекция ${COLLECTION} создана (размерность ${vectorSize})`);
         } else {
-            logger.success(`Коллекция ${collectionName} уже существует`);
+            const info = await qdrantClient.getCollection(COLLECTION);
+            const currentSize = info?.config?.params?.vectors?.size;
+
+            if (currentSize && currentSize !== vectorSize) {
+                logger.error(
+                    `Размерность коллекции ${COLLECTION} (${currentSize}) не совпадает с настройкой ` +
+                    `«Размерность векторов» (${vectorSize}). Векторизация будет падать — приведите ` +
+                    `настройку к размерности модели эмбеддингов или пересоздайте коллекцию.`
+                );
+            }
         }
+
+        // Индексы идемпотентны: повторное создание существующего — не ошибка
+        for (const index of PAYLOAD_INDEXES) {
+            try {
+                await qdrantClient.createPayloadIndex(COLLECTION, index);
+            } catch (error) {
+                logger.debug(`Индекс ${index.field_name} уже существует: ${error.message}`);
+            }
+        }
+
+        logger.success(`Инициализация коллекции ${COLLECTION} и всех индексов завершена`);
     } catch (error) {
-        logger.error("Ошибка при инициализации Qdrant", null, error?.cause || error.message || error);
+        logger.error('Ошибка при инициализации Qdrant', null, error?.cause || error.message || error);
     }
 }
 

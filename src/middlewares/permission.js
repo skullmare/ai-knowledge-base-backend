@@ -16,6 +16,9 @@ const checkPermission = (required) => {
                 );
             }
 
+            // Пробрасываем права дальше — контроллерам с более тонкой проверкой
+            req.userPermissions = user.role.permissions;
+
             const hasAll = requiredArray.every(p => user.role.permissions.includes(p));
 
             if (!hasAll) {

@@ -22,7 +22,7 @@ const startServer = async () => {
     
     await seedPlatformRoles();
     // await seedAgentRoles();
-    // await seedSystemSettings();
+    await seedSystemSettings();
     // await seedTopicCategories();
     await seedSuperAdmin();
     await syncAgentUserIndexes();
