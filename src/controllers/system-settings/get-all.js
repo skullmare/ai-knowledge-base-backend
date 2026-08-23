@@ -1,6 +1,7 @@
 const { getSettingsMap } = require('../../services/settings');
 const { SETTINGS_DEFINITIONS, READONLY_KEYS } = require('../../constants/settings');
 const { EMBEDDING_MODEL, EMBEDDING_DIMENSIONS } = require('../../constants/ai');
+const { describeApiKey } = require('../../services/ai/client');
 const successHandler = require('../../utils/success-handler');
 const errorHandler = require('../../utils/error-handler');
 
@@ -32,6 +33,8 @@ module.exports = async (req, res) => {
         const fixed = {
             embeddingModel: EMBEDDING_MODEL,
             embeddingDimensions: EMBEDDING_DIMENSIONS,
+            // Отпечаток ключа без раскрытия значения — видно, что именно сохранено
+            apiKey: describeApiKey(map.ai_api_key),
         };
 
         return successHandler(res, 200, 'Системные настройки получены', { settings, fixed });

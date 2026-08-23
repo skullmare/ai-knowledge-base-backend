@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 const { qdrantClient } = require('../../config/qdrant');
 const { listModels } = require('../services/ai/list-models');
+const { getEmbeddings } = require('../services/ai/get-embeddings');
 const { getSetting } = require('../services/settings');
 const { EMBEDDING_MODEL, EMBEDDING_DIMENSIONS } = require('../constants/ai');
 
@@ -49,12 +50,23 @@ const checkRouterAi = async () => {
     const known = new Set(models.map(m => m.id));
     const missing = [chatModel, EMBEDDING_MODEL].filter(model => model && !known.has(model));
 
-    return {
-        ok: !missing.length,
-        message: missing.length
-            ? `Доступно моделей: ${models.length}, но не найдены: ${missing.join(', ')}`
-            : `Доступно моделей: ${models.length}`,
-    };
+    if (missing.length) {
+        return { ok: false, message: `Доступно моделей: ${models.length}, но не найдены: ${missing.join(', ')}` };
+    }
+
+    // Список моделей у части провайдеров отдаётся без авторизации, поэтому
+    // ключ проверяем именно тем вызовом, которым идёт векторизация
+    const [vector] = await getEmbeddings(['проверка подключения']);
+    const dimensions = vector?.embedding?.length ?? 0;
+
+    if (dimensions !== EMBEDDING_DIMENSIONS) {
+        return {
+            ok: false,
+            message: `Модель вернула вектор размерности ${dimensions}, ожидалось ${EMBEDDING_DIMENSIONS}`,
+        };
+    }
+
+    return { ok: true, message: `Доступно моделей: ${models.length}, эмбеддинги отвечают (${dimensions})` };
 };
 
 /**

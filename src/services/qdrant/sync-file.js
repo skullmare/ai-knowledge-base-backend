@@ -18,21 +18,19 @@ const stage = async (label, fn) => {
  * Кладёт сегменты файла в векторную базу, предварительно удалив прошлые.
  *
  * @param {import('mongoose').Document} file — документ KnowledgeFile
- * @param {{ kind: 'text'|'file', segments: Array<{input: string|object, text: string}> }} prepared
+ * @param {{ segments: Array<{input: string, text: string}> }} prepared
  * @returns {Promise<number>} количество загруженных точек
  */
-async function syncFileToQdrant(file, { kind, segments }) {
+async function syncFileToQdrant(file, { segments }) {
     const fileId = file._id.toString();
 
     await stage('Qdrant', () => deleteFileFromQdrant(fileId));
 
     if (!segments.length) return 0;
 
-    // Файлы уходят по одному: лимиты модели считаются на запрос, а не на вход
-    const batchSize = kind === 'file' ? 1 : EMBEDDING_LIMITS.TEXT_BATCH;
     const embeddings = await stage(
         'Векторизация',
-        () => getEmbeddings(segments.map((s) => s.input), { batchSize })
+        () => getEmbeddings(segments.map((s) => s.input), { batchSize: EMBEDDING_LIMITS.TEXT_BATCH })
     );
 
     const roleIds = (file.accessibleByRoles || []).map((role) => (role._id ?? role).toString());

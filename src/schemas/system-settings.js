@@ -52,11 +52,9 @@ const updateSettingsSchema = z.object({
     })
 });
 
+// Проверка идёт по сохранённой конфигурации, тело запроса не читается
 const testConnectionSchema = z.object({
-    body: z.object({
-        apiKey: z.string().trim().min(1).optional(),
-        baseURL: z.string().trim().url('Некорректный адрес API').optional(),
-    })
+    body: z.object({}).loose()
 });
 
 module.exports = { updateSettingsSchema, testConnectionSchema };

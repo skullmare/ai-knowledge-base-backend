@@ -1,13 +1,17 @@
 const path = require('path');
-const { PDFDocument } = require('pdf-lib');
+const { parseOffice } = require('officeparser');
 const { getMarkdownChunks } = require('../chunker/markdown-chunker');
-const { EMBEDDING_LIMITS } = require('../../constants/ai');
 
-// Текстовые форматы читаем сами: текст дешевле файлового ввода и даёт
-// осмысленный фрагмент в контекст агента
+// Текстовые форматы читаем напрямую
 const PLAIN_TEXT_EXTENSIONS = new Set([
     '.txt', '.md', '.markdown', '.csv', '.tsv', '.json', '.yaml', '.yml',
     '.xml', '.html', '.htm', '.log',
+]);
+
+// Документы, из которых текст достаётся officeparser (в процессе, без внешнего сервиса)
+const DOCUMENT_EXTENSIONS = new Set([
+    '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx',
+    '.odt', '.ods', '.odp', '.rtf', '.epub',
 ]);
 
 const isPlainText = (mimeType = '') =>
@@ -15,60 +19,32 @@ const isPlainText = (mimeType = '') =>
     mimeType === 'application/json' ||
     mimeType === 'application/xml';
 
-const toDataUri = (buffer, mimeType) =>
-    `data:${mimeType || 'application/octet-stream'};base64,${buffer.toString('base64')}`;
-
-const filePart = (buffer, filename, mimeType) => ({
-    content: [{
-        type: 'file',
-        file: { filename, file_data: toDataUri(buffer, mimeType) },
-    }],
-});
-
-const imagePart = (buffer, mimeType) => ({
-    content: [{
-        type: 'image_url',
-        image_url: { url: toDataUri(buffer, mimeType) },
-    }],
-});
-
 /**
- * PDF режем на части: за один запрос модель принимает не больше
- * EMBEDDING_LIMITS.PDF_PAGES_PER_REQUEST страниц.
+ * RouterAI проксирует эмбеддинги по обычной OpenAI-схеме: `input` принимает
+ * только строки. Мультимодальный ввод самой модели через него недоступен,
+ * поэтому текст из документов достаём на своей стороне.
  */
-const splitPdf = async (buffer, filename) => {
-    const source = await PDFDocument.load(buffer, { ignoreEncryption: true });
-    const pageCount = source.getPageCount();
-    const perRequest = EMBEDDING_LIMITS.PDF_PAGES_PER_REQUEST;
+const extractText = async (buffer, filename) => {
+    try {
+        const parsed = await parseOffice(buffer);
+        return parsed.toText().trim();
+    } catch (error) {
+        throw new Error(
+            `Не удалось извлечь текст из файла «${filename}»: ${error.message}`,
+            { cause: error }
+        );
+    }
+};
 
-    if (pageCount <= perRequest) {
-        return [{
-            input: filePart(buffer, filename, 'application/pdf'),
-            text: `Файл «${filename}», страницы 1–${pageCount}`,
-        }];
+const toSegments = async (text, filename) => {
+    if (!text) {
+        throw new Error(
+            `В файле «${filename}» не найдено текста. Отсканированные документы без текстового слоя векторизовать нельзя.`
+        );
     }
 
-    const segments = [];
-
-    for (let start = 0; start < pageCount; start += perRequest) {
-        const end = Math.min(start + perRequest, pageCount);
-
-        const part = await PDFDocument.create();
-        const pages = await part.copyPages(source, Array.from(
-            { length: end - start },
-            (_, i) => start + i
-        ));
-        pages.forEach((page) => part.addPage(page));
-
-        const partName = `${path.basename(filename, '.pdf')}_стр_${start + 1}-${end}.pdf`;
-
-        segments.push({
-            input: filePart(Buffer.from(await part.save()), partName, 'application/pdf'),
-            text: `Файл «${filename}», страницы ${start + 1}–${end}`,
-        });
-    }
-
-    return segments;
+    const chunks = await getMarkdownChunks(text);
+    return chunks.map((chunk) => ({ input: chunk, text: chunk }));
 };
 
 /**
@@ -79,44 +55,28 @@ const splitPdf = async (buffer, filename) => {
  * @param {Buffer} buffer
  * @param {string} filename
  * @param {string} [mimeType]
- * @returns {Promise<{ segments: Array<{input: string|object, text: string}>, kind: 'text'|'file' }>}
+ * @returns {Promise<{ segments: Array<{input: string, text: string}> }>}
  */
 async function buildSegments(buffer, filename, mimeType) {
     const extension = path.extname(filename || '').toLowerCase();
 
     if (PLAIN_TEXT_EXTENSIONS.has(extension) || isPlainText(mimeType)) {
-        const text = buffer.toString('utf8').trim();
-        if (!text) throw new Error('Файл пустой — векторизовать нечего');
-
-        const chunks = await getMarkdownChunks(text);
-        return {
-            kind: 'text',
-            segments: chunks.map((chunk) => ({ input: chunk, text: chunk })),
-        };
+        return { segments: await toSegments(buffer.toString('utf8').trim(), filename) };
     }
 
-    if (extension === '.pdf' || mimeType === 'application/pdf') {
-        return { kind: 'file', segments: await splitPdf(buffer, filename) };
+    if (DOCUMENT_EXTENSIONS.has(extension)) {
+        return { segments: await toSegments(await extractText(buffer, filename), filename) };
     }
 
-    if (mimeType?.startsWith('image/')) {
-        return {
-            kind: 'file',
-            segments: [{
-                input: imagePart(buffer, mimeType),
-                text: `Изображение «${filename}»`,
-            }],
-        };
+    // Картинки, аудио и видео модель умеет, но RouterAI их не пропускает
+    if (/^(image|audio|video)\//.test(mimeType ?? '')) {
+        throw new Error(
+            `Файлы такого типа (${mimeType}) векторизовать нельзя: RouterAI принимает только текстовый ввод.`
+        );
     }
 
-    // Остальное (docx, xlsx, pptx, аудио, видео) модель принимает как файл
-    return {
-        kind: 'file',
-        segments: [{
-            input: filePart(buffer, filename, mimeType),
-            text: `Файл «${filename}»`,
-        }],
-    };
+    // Неизвестное расширение — пробуем разобрать как документ
+    return { segments: await toSegments(await extractText(buffer, filename), filename) };
 }
 
-module.exports = { buildSegments, PLAIN_TEXT_EXTENSIONS };
+module.exports = { buildSegments, PLAIN_TEXT_EXTENSIONS, DOCUMENT_EXTENSIONS };
