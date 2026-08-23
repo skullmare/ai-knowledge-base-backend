@@ -1,4 +1,5 @@
-const { chat } = require('../openrouter/chat');
+const { chat } = require('../ai/chat');
+const { getSetting } = require('../settings');
 
 async function rewriteQuery(userMessage, history) {
     if (!history.length) return userMessage;
@@ -7,14 +8,10 @@ async function rewriteQuery(userMessage, history) {
         .map(m => `${m.role === 'user' ? 'Пользователь' : 'Агент'}: ${m.content}`)
         .join('\n');
 
+    const systemPrompt = await getSetting('agent_rewrite_prompt');
+
     const result = await chat([
-        {
-            role: 'system',
-            content: `Ты помощник, который формулирует поисковые запросы к базе знаний.
-На основе истории диалога и последнего сообщения пользователя сформулируй один самодостаточный поисковый запрос, который полностью описывает информацию, которую нужно найти.
-Запрос должен быть конкретным, без местоимений вроде "это", "он", "там" — только явные понятия.
-Отвечай ТОЛЬКО поисковым запросом, без пояснений.`
-        },
+        { role: 'system', content: systemPrompt },
         {
             role: 'user',
             content: `История диалога:\n${historyText}\n\nПоследнее сообщение: ${userMessage}`

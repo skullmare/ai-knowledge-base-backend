@@ -1,10 +1,10 @@
 const mongoose = require('mongoose');
+const { SETTINGS_GROUPS } = require('../constants/settings');
 
 const systemSettingSchema = new mongoose.Schema({
     name: { 
         type: String, 
         required: true, 
-        unique: true, 
         trim: true 
     },
     key: { 
@@ -15,12 +15,16 @@ const systemSettingSchema = new mongoose.Schema({
     },
     value: { 
         type: mongoose.Schema.Types.Mixed, 
-        required: true 
+        default: '' 
     },
     group: {
         type: String,
-        enum: ['ai', 'logs', 'general', 'security'],
-        default: 'general'
+        enum: Object.values(SETTINGS_GROUPS),
+        default: SETTINGS_GROUPS.GENERAL
+    },
+    isSecret: {
+        type: Boolean,
+        default: false
     },
     description: { 
         type: String, 

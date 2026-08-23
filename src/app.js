@@ -21,6 +21,8 @@ const topicCategoriesRoutes = require('./routes/topic-category');
 const logsRoutes = require('./routes/log');
 const agentRoleRoutes = require('./routes/agent-role');
 const agentUserRoutes = require('./routes/agent-user');
+const systemSettingsRoutes = require('./routes/system-settings');
+const googleDriveRoutes = require('./routes/google-drive');
 
 const app = express();
 expressWs(app);
@@ -58,6 +60,8 @@ app.use('/api/v1/topic/categories', topicCategoriesRoutes);
 app.use('/api/v1/logs', logsRoutes);
 app.use('/api/v1/agent/roles', agentRoleRoutes);
 app.use('/api/v1/agent/users', agentUserRoutes);
+app.use('/api/v1/system/settings', systemSettingsRoutes);
+app.use('/api/v1/google-drive', googleDriveRoutes);
 app.use('/api/v1/permissions', permissionsRoutes);
 app.use('/api/v1/actions', actionsRoutes);
 

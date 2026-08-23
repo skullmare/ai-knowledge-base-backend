@@ -2,10 +2,9 @@ const crypto = require('crypto');
 const { qdrantClient } = require('../../../config/qdrant');
 const { deleteTopicFromQdrant } = require('./delete-chunk');
 const { getMarkdownChunks } = require('../chunker/markdown-chunker');
-const { getEmbeddings } = require('../openrouter/get-embeddings');
+const { getEmbeddings } = require('../ai/get-embeddings');
 
-const { COLLECTION_NAME } = process.env;
-
+const COLLECTION = process.env.COLLECTION_NAME || 'knowledge_base';
 
 async function syncTopicToQdrant(topic) {
     const topicId = topic._id.toString();
@@ -23,6 +22,7 @@ async function syncTopicToQdrant(topic) {
         payload: {
             text: chunks[i],
             metadata: {
+                source: 'topic',
                 topicId,
                 name: topic.name,
                 category: topic.metadata.category?.name?.toString(),
@@ -31,7 +31,7 @@ async function syncTopicToQdrant(topic) {
         }
     }));
 
-    return qdrantClient.upsert(COLLECTION_NAME, { wait: true, points });
+    return qdrantClient.upsert(COLLECTION, { wait: true, points });
 }
 
 module.exports = { syncTopicToQdrant };

@@ -1,4 +1,4 @@
-const { PutObjectCommand } = require('@aws-sdk/client-s3');
+const { PutObjectCommand, GetObjectCommand } = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const path = require('path');
 const crypto = require('crypto');
@@ -31,4 +31,23 @@ async function createPresignedUploadUrl(originalName, mimeType) {
     };
 }
 
-module.exports = { createPresignedUploadUrl };
+/**
+ * Ссылка на скачивание/просмотр приватного объекта.
+ * @param {{ inline?: boolean, filename?: string }} options
+ */
+async function createPresignedDownloadUrl(key, { inline = false, filename } = {}) {
+    const disposition = inline ? 'inline' : 'attachment';
+    const safeName = filename ? filename.replace(/["\\]/g, '') : path.basename(key);
+
+    const command = new GetObjectCommand({
+        Bucket: BUCKET,
+        Key: key,
+        ResponseContentDisposition: `${disposition}; filename*=UTF-8''${encodeURIComponent(safeName)}`,
+    });
+
+    const url = await getSignedUrl(s3Client, command, { expiresIn: EXPIRES_IN });
+
+    return { url, expiresIn: EXPIRES_IN };
+}
+
+module.exports = { createPresignedUploadUrl, createPresignedDownloadUrl };

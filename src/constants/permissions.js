@@ -65,13 +65,27 @@ const PERMISSIONS_CONFIG = {
         label: "Системные настройки",
         actions: {
             READ: { key: 'system_settings.read', label: 'Просмотр системных настроек' },
-            UPDATE: { key: 'system_settings.update', label: 'Редактирование системных настроек' }
+            UPDATE: { key: 'system_settings.update', label: 'Редактирование системных настроек' },
+            AI_PROVIDER: { key: 'system_settings.ai_provider', label: 'Настройка подключения RouterAI' },
+            GOOGLE_DRIVE: { key: 'system_settings.google_drive', label: 'Настройка подключения Google Drive' },
+            AGENT: { key: 'system_settings.agent', label: 'Настройка модели и промптов агента' }
         }
     },
     FILES: {
         label: "Файлы",
         actions: {
+            READ: { key: 'files.read', label: 'Просмотр файлов базы знаний' },
             UPLOAD: { key: 'files.upload', label: 'Загрузка файлов' },
+            UPDATE: { key: 'files.update', label: 'Переименование файлов и управление доступом' },
+            DELETE: { key: 'files.delete', label: 'Удаление файлов' },
+            VECTORIZE: { key: 'files.vectorize', label: 'Векторизация файлов и удаление из векторной базы' },
+        }
+    },
+    GOOGLE_DRIVE: {
+        label: "Google Drive",
+        actions: {
+            READ: { key: 'googleDrive.read', label: 'Просмотр файлов подключённого Google Drive' },
+            IMPORT: { key: 'googleDrive.import', label: 'Векторизация файлов из Google Drive' },
         }
     },
 };

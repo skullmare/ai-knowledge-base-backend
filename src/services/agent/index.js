@@ -1,5 +1,5 @@
 const Message = require('../../models/message');
-const { getEmbeddings } = require('../openrouter/get-embeddings');
+const { getEmbeddings } = require('../ai/get-embeddings');
 const { rewriteQuery } = require('./rewrite-query');
 const { searchChunks } = require('./search');
 const { generateResponse } = require('./respond');
@@ -33,7 +33,7 @@ async function processMessage(agentUser, userMessage) {
         const embeddings = await getEmbeddings([searchQuery]);
         [embedding] = embeddings;
     } catch (err) {
-        logger.error('[Agent] Ошибка получения эмбеддингов (OpenRouter)', null, err.message);
+        logger.error('[Agent] Ошибка получения эмбеддингов', null, err.message);
         throw err;
     }
 
@@ -53,7 +53,7 @@ async function processMessage(agentUser, userMessage) {
     try {
         responseAgent = await generateResponse(userMessage, chunks, history);
     } catch (err) {
-        logger.error('[Agent] Ошибка генерации ответа (OpenRouter chat)', null, err.message);
+        logger.error('[Agent] Ошибка генерации ответа', null, err.message);
         throw err;
     }
 
