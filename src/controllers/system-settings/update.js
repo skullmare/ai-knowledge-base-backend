@@ -6,12 +6,18 @@ const errorHandler = require('../../utils/error-handler');
 const logHandler = require('../../utils/log-handler');
 const { ACTIONS_CONFIG } = require('../../constants/actions');
 
-// Каждая группа настроек закрыта своим правом
+// Каждая вкладка настроек закрыта своим правом; остальные группы —
+// общим правом на редактирование настроек
 const GROUP_PERMISSIONS = {
     ai: 'system_settings.ai_provider',
     agent: 'system_settings.agent',
     google_drive: 'system_settings.google_drive',
 };
+
+const DEFAULT_PERMISSION = 'system_settings.update';
+
+const permissionFor = (key) =>
+    GROUP_PERMISSIONS[SETTINGS_MAP[key]?.group] ?? DEFAULT_PERMISSION;
 
 module.exports = async (req, res) => {
     const userId = req.user?.id;
@@ -21,10 +27,7 @@ module.exports = async (req, res) => {
         const keys = Object.keys(settings);
 
         const userPermissions = req.userPermissions ?? [];
-        const forbidden = keys.filter((key) => {
-            const permission = GROUP_PERMISSIONS[SETTINGS_MAP[key]?.group];
-            return permission && !userPermissions.includes(permission);
-        });
+        const forbidden = keys.filter((key) => !userPermissions.includes(permissionFor(key)));
 
         if (forbidden.length) {
             return errorHandler(res, 403, 'Недостаточно прав', forbidden.map((key) => ({

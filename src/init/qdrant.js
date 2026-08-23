@@ -1,16 +1,9 @@
 const { qdrantClient } = require('../../config/qdrant');
 const { getNumberSetting } = require('../services/settings');
+const { PAYLOAD_INDEXES } = require('../services/qdrant/recreate-collection');
 const logger = require('../utils/logger');
 
 const COLLECTION = process.env.COLLECTION_NAME || 'knowledge_base';
-
-const PAYLOAD_INDEXES = [
-    { field_name: 'metadata.category', field_schema: 'keyword' },
-    { field_name: 'metadata.accessibleByRoles', field_schema: 'keyword' },
-    { field_name: 'metadata.topicId', field_schema: 'keyword' },
-    { field_name: 'metadata.fileId', field_schema: 'keyword' },
-    { field_name: 'metadata.source', field_schema: 'keyword' },
-];
 
 async function initQdrant() {
     try {
