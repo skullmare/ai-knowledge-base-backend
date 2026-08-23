@@ -1,6 +1,6 @@
 const Topic = require('../../models/topic');
+const { deleteMultipleFilesFromS3 } = require('../../services/yandex/S3/delete-list');
 const { deleteTopicFromQdrant } = require('../../services/qdrant/delete-chunk');
-const { TOPIC_POPULATE } = require('../../constants/topic-populate');
 const successHandler = require('../../utils/success-handler');
 const errorHandler = require('../../utils/error-handler');
 const logHandler = require('../../utils/log-handler');
@@ -12,45 +12,58 @@ module.exports = async (req, res) => {
     const data = req.validatedData.body;
 
     try {
-        const update = { updatedBy: userId };
-        const changes = [];
+        const topic = await Topic.findById(id);
+
+        const update = { $set: {}, $push: {}, $pull: {} };
+        let changeSummary = [];
+
+        if (data.filesToDelete?.length) {
+            const toDelete = data.filesToDelete.filter(url => topic.files.some(f => f.url === url));
+            if (toDelete.length) {
+                await deleteMultipleFilesFromS3(toDelete);
+                update.$pull.files = { url: { $in: toDelete } };
+                changeSummary.push(`удалено файлов: ${toDelete.length}`);
+            }
+        }
 
         if (data.name) {
-            update.name = data.name;
-            changes.push('изменено название');
+            update.$set.name = data.name;
+            changeSummary.push('изменено название');
         }
 
         if (data.metadata) {
-            Object.entries(data.metadata).forEach(([key, value]) => {
-                update[`metadata.${key}`] = value;
+            Object.keys(data.metadata).forEach(key => {
+                update.$set[`metadata.${key}`] = data.metadata[key];
             });
-            changes.push('обновлены метаданные');
+            changeSummary.push('обновлены метаданные');
         }
 
-        const nextStatus = data.status === 'archived' ? 'archived' : 'review';
-
-        // Любая правка возвращает тему на проверку, поэтому проиндексированные
-        // чанки становятся неактуальными — снимаем их из Qdrant и сбрасываем флаг.
-        await deleteTopicFromQdrant(id);
-        update.status = nextStatus;
-        update['vectorData.isIndexed'] = false;
-        changes.push(nextStatus === 'archived' ? 'тема архивирована' : 'тема отправлена на проверку');
-
-        const result = await Topic.findByIdAndUpdate(
-            id,
-            { $set: update },
-            { returnDocument: 'after', runValidators: true }
-        ).populate(TOPIC_POPULATE);
-
-        if (!result) {
-            return errorHandler(res, 404, 'Тема не найдена', [
-                { path: 'id', message: `Тема с ID ${id} отсутствует в системе` }
-            ]);
+        if (data.status == 'archived') {
+            await deleteTopicFromQdrant(id)
+            update.$set.status = 'archived';
+        } else {
+            update.$set.status = 'review';
         }
+
+        update.$set.updatedBy = userId;
+
+        ['$set', '$push', '$pull'].forEach(op => {
+            if (!Object.keys(update[op]).length) delete update[op];
+        });
+
+        if (Object.keys(update).length === 0) {
+            return successHandler(res, 200, 'Изменений не обнаружено', topic);
+        }
+
+        const result = await Topic.findByIdAndUpdate(id, update, { returnDocument: 'after', runValidators: true })
+            .populate('metadata.category', 'name')
+            .populate('metadata.accessibleByRoles', 'name')
+            .populate('createdBy', 'firstName lastName photoUrl')
+            .populate('updatedBy', 'firstName lastName photoUrl')
 
         await logHandler({
             action: ACTIONS_CONFIG.TOPICS.actions.UPDATE.key,
-            message: `Тема "${result.name}" обновлена. Детали: ${changes.join(', ')}`,
+            message: `Тема "${result.name || id}" обновлена. Детали: ${changeSummary.join(', ')}`,
             userId,
             entityId: id,
             status: 'success'
@@ -67,8 +80,11 @@ module.exports = async (req, res) => {
             status: 'error'
         });
 
-        return errorHandler(res, 500, 'Ошибка сервера при обновлении темы', [
-            { path: 'server', message: error.message }
-        ]);
+        return errorHandler(
+            res,
+            500,
+            'Ошибка сервера при обновлении темы',
+            [{ path: 'server', message: error.message }]
+        );
     }
 };

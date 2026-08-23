@@ -3,11 +3,11 @@ const { processMessage } = require('../agent');
 const { registerAgentUser } = require('../agent-user/register');
 const logger = require('../../utils/logger');
 const kb = require('./keyboards');
+const { get: getBot } = require('../../../config/telegram');
 
-// Бот приходит параметром (как в MAX-хендлерах): скрытый доступ к глобальному
-// инстансу делал модуль непроверяемым и падал, если бот не инициализирован.
-async function onMessage(msg, bot) {
+async function onMessage(msg) {
     const chatIdTG = String(msg.chat.id);
+    const bot = getBot();
 
     if (msg.text === '/start') {
         const user = await AgentUser.findOne({ chatIdTG }).populate('role');
@@ -28,13 +28,13 @@ async function onMessage(msg, bot) {
         const response = await processMessage(user, msg.text);
         return bot.sendMessage(chatIdTG, response);
     } catch (err) {
-        logger.error('[TelegramBot] Ошибка обработки запроса пользователя', null, err.message);
         return bot.sendMessage(chatIdTG, 'Произошла ошибка при обработке вашего запроса. Попробуйте ещё раз позже.');
     }
 }
 
-async function onContact(msg, bot) {
+async function onContact(msg) {
     const chatIdTG = String(msg.chat.id);
+    const bot = getBot();
     const { contact } = msg;
 
     if (String(contact.user_id) !== String(msg.from.id))

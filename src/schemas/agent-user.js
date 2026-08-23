@@ -1,8 +1,14 @@
 const mongoose = require('mongoose');
 const { z } = require('zod');
-const { objectId: objectIdSchema, dbExists, paginationQuery } = require('./common');
 
-const objectId = objectIdSchema();
+const objectId = z.string()
+    .trim()
+    .refine(v => mongoose.Types.ObjectId.isValid(v), "Некорректный ID");
+
+const dbExists = (modelName) => async (id, ctx) => {
+    const exists = await mongoose.model(modelName).exists({ _id: id });
+    if (!exists) ctx.addIssue({ code: 'custom', message: `${modelName} не найден` });
+};
 
 const updateAgentUserSchema = z.object({
     params: z.object({
@@ -49,8 +55,9 @@ const updateAgentUserSchema = z.object({
 
 const getAllAgentUsersSchema = z.object({
     query: z.object({
-        ...paginationQuery(10),
-        search: z.string().trim().optional(),
+        page: z.string().regex(/^\d+$/, "Номер страницы должен быть числом").transform(Number).default("1"),
+        limit: z.string().regex(/^\d+$/, "Лимит должен быть числом").transform(Number).default("10"),
+        search: z.string().optional(),
         role: objectId.optional(),
         status: z.enum(['active', 'blocked', 'pending'], "Недопустимый статус. Доступны: active, blocked, pending").optional(),
         hasPhone: z.enum(['true', 'false'], "Должно быть true или false").transform(val => val === 'true').optional()

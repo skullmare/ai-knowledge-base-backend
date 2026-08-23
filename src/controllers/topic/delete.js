@@ -1,5 +1,7 @@
 const Topic = require('../../models/topic');
 const { deleteTopicFromQdrant } = require('../../services/qdrant/delete-chunk');
+const { deleteMultipleFilesFromS3 } = require('../../services/yandex/S3/delete-list');
+
 const successHandler = require('../../utils/success-handler');
 const errorHandler = require('../../utils/error-handler');
 const logHandler = require('../../utils/log-handler');
@@ -12,38 +14,35 @@ module.exports = async (req, res) => {
     try {
         const topic = await Topic.findById(id).lean();
 
-        if (!topic) {
-            return errorHandler(res, 404, 'Тема не найдена', [
-                { path: 'id', message: `Тема с ID ${id} отсутствует в системе` }
-            ]);
-        }
+        const fileUrls = topic.files?.map(f => f.url) || [];
+        const topicName = topic.name || 'Без названия';
 
-        // Сначала чистим векторы: если удалить документ первым и упасть здесь,
-        // в Qdrant останутся чанки, которые уже нечем найти и удалить.
         try {
-            await deleteTopicFromQdrant(id);
+            await Promise.all([
+                deleteMultipleFilesFromS3(fileUrls),
+                deleteTopicFromQdrant(id),
+                Topic.findByIdAndDelete(id)
+            ]);
         } catch (cleanupError) {
             await logHandler({
                 action: ACTIONS_CONFIG.TOPICS.actions.CLEANUP_ERROR.key,
-                message: `Ошибка при очистке векторов темы: ${cleanupError.message}`,
+                message: `Ошибка при очистке ресурсов (S3/Qdrant/DB): ${cleanupError.message}`,
                 userId,
                 entityId: id,
                 status: 'error'
             });
-            throw cleanupError;
+            throw cleanupError; 
         }
-
-        await Topic.findByIdAndDelete(id);
 
         await logHandler({
             action: ACTIONS_CONFIG.TOPICS.actions.DELETE.key,
-            message: `Тема "${topic.name}" успешно удалена`,
+            message: `Тема "${topicName}" и ${fileUrls.length} связанных файлов успешно удалены`,
             userId,
             entityId: id,
             status: 'success'
         });
 
-        return successHandler(res, 200, 'Тема успешно удалена', { id });
+        return successHandler(res, 200, 'Тема и связанные файлы успешно удалены', { id });
 
     } catch (error) {
         await logHandler({
@@ -54,8 +53,11 @@ module.exports = async (req, res) => {
             status: 'error'
         });
 
-        return errorHandler(res, 500, 'Ошибка сервера при удалении темы', [
-            { path: 'server', message: error.message }
-        ]);
+        return errorHandler(
+            res, 
+            500, 
+            'Ошибка сервера при удалении темы', 
+            [{ path: 'server', message: error.message }]
+        );
     }
 };

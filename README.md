@@ -1,90 +1,105 @@
-# 🚀 Knowledge Base for AI — Backend
+# 🚀 Knowledge Base for AI (Backend)
 
-Backend платформы управления корпоративными знаниями ИИ-агента.
+### Backend для платформы управления корпоративными знаниями ИИ-агента
 
-Система хранит знания в виде тем с совместным редактированием, индексирует
-одобренные темы в векторной базе и отвечает на вопросы сотрудников в Telegram
-и MAX — строго в пределах того, к чему у спрашивающего есть доступ по роли.
+**Knowledge Base for AI** — это платформа для хранения, обработки и предоставления корпоративных данных ИИ-агенту. Система использует гибридное чанкирование, векторный поиск и современные LLM для обеспечения точных ответов на основе внутренней базы знаний.
 
 ---
 
-## 🛠 Стек
+## 🛠 Стек технологий
 
-| Компонент | Роль |
-| --- | --- |
-| **Node.js / Express 5** | HTTP API и WebSocket |
-| **MongoDB / Mongoose** | Основное хранилище |
-| **Qdrant** | Векторный поиск по базе знаний |
-| **OpenRouter** | LLM и эмбеддинги |
-| **Yandex Object Storage** | Файлы и аватары |
-| **Hocuspocus + Yjs + BlockNote** | Совместное редактирование тем |
-| **Telegram / MAX** | Каналы общения с ИИ-агентом |
-| **Zod** | Валидация входящих данных |
-| **Jest + supertest** | Тесты |
+* **Node.js/Express:** Центральное API, управляющее бизнес-логикой и интеграциями.
+* **Docling:** Специализированный сервис для умного гибридного чанкирования документов.
+* **Qdrant:** Высокопроизводительная векторная база данных для семантического поиска.
+* **MongoDB:** Основное хранилище метаданных и настроек системы.
+* **Yandex Cloud:** Объектное хранилище (S3) для физических файлов.
+* **OpenRouter:** Поставщик LLM моделей.
+* **Infrastructure:** Docker / Amvera (PaaS)
 
 ---
 
 ## ⚙️ Быстрый старт
 
+### 1. Требования
+
+* Установленный **Docker** и **Docker Compose**
+* Развернутые внешние сервисы **MongoDB**, **Qdrant**, **Docling**
+* **Node.js v18** или выше
+* Аккаунты в **Yandex Cloud** и **OpenRouter**
+
+### 2. Клонирование репозитория
+
 ```bash
 git clone https://github.com/skullmare/ai-knowledge-base-backend.git
 cd ai-knowledge-base-backend
 
-npm install
-cp .env.example .env     # заполните значения
-npm run dev
 ```
 
-Полный список переменных окружения — в [`docs/operations.md`](./docs/operations.md).
+### 3. Настройка окружения
 
-При первом запуске создаются системная роль со всеми правами и системный
-администратор с учётными данными из `LOGIN_SUPER_ADMIN` / `PASSWORD_SUPER_ADMIN`.
+Создайте файл `.env` в корневом каталоге и заполните его, используя шаблон ниже (не забудьте заменить значения на свои):
 
-### Docker
+```env
+# Server Configuration
+PORT=3000
+NODE_ENV=development
+
+# Databases
+MONGODB_URI=mongodb://localhost:27017/nameDB
+QDRANT_URL=http://localhost:6333
+QDRANT_API_KEY=your_qdrant_key
+
+# Admin Credentials
+LOGIN_SUPER_ADMIN=admin
+PASSWORD_SUPER_ADMIN=your_secure_password
+
+# Security (JWT)
+JWT_ACCESS_SECRET=your_access_secret
+JWT_REFRESH_SECRET=your_refresh_secret
+
+# AI & LLM
+OPENROUTER_MODEL=openai/text-embedding-3-small
+OPENROUTER_API_KEY=your_openrouter_key
+DOCLING_URL=http://localhost:5001
+
+# Cloud Storage (Yandex Cloud)
+YANDEX_ACCESS_KEY_ID=your_key_id
+YANDEX_SECRET_ACCESS_KEY=your_secret_key
+BUCKET_NAME=operon
+
+# Mail Service
+EMAIL_HOST=smtp.ethereal.email
+EMAIL_PORT=587
+EMAIL_USER=your_email_user
+EMAIL_PASSWORD=your_email_password
+EMAIL_FROM=your_email_from
+
+# Frontend
+RESET_PASSWORD_URL=http://localhost:3000/reset-password
+
+```
+
+### 4. Запуск (Docker)
+
+
+### 5. Установка зависимостей и запуск приложения
 
 ```bash
-docker build -t knowledge-base-backend .
-docker run --env-file .env -p 3000:3000 knowledge-base-backend
+npm install
+npm run dev
+
 ```
 
----
+### 6. Ссылка на документацию по API
 
-## 📜 Команды
-
-| Команда | Что делает |
-| --- | --- |
-| `npm start` | Запуск в продакшене |
-| `npm run dev` | Запуск с автоперезагрузкой |
-| `npm test` | Прогон всех тестов |
-| `npm run test:coverage` | Тесты с отчётом о покрытии |
-| `npm run lint` | Проверка ESLint |
+[![Postman](https://img.shields.io/badge/Postman-FF6C37?style=for-the-badge&logo=postman&logoColor=white)](https://www.postman.com/rocketmind/rocketmind/documentation/33378290-e357ac2b-9202-4baf-8bb6-3f697af3f79f)
 
 ---
 
-## 📚 Документация
-
-| Документ | О чём |
-| --- | --- |
-| [architecture.md](./docs/architecture.md) | Общая архитектура и потоки данных |
-| [project-structure.md](./docs/project-structure.md) | Карта каталогов и слоёв |
-| [api.md](./docs/api.md) | Маршруты, права, формат ответа |
-| [auth.md](./docs/auth.md) | Аутентификация, 2FA, права |
-| [knowledge-base.md](./docs/knowledge-base.md) | Темы, редактирование, индексация |
-| [ai-agent.md](./docs/ai-agent.md) | Конвейер ответа агента |
-| [data-model.md](./docs/data-model.md) | Коллекции и связи |
-| [integrations.md](./docs/integrations.md) | Внешние системы |
-| [logging.md](./docs/logging.md) | Журнал событий и логи |
-| [testing.md](./docs/testing.md) | Как устроены и как писать тесты |
-| [operations.md](./docs/operations.md) | Окружение, запуск, деплой |
-
-Правила разработки — в [`CLAUDE.md`](./CLAUDE.md).
-
----
-
-## 👥 Роли по умолчанию
+## 👥 Роли пользователей по умолчанию
 
 | Роль | Описание |
 | --- | --- |
-| **Системный администратор** | Полный доступ ко всем функциям системы |
+| **Системный администратор** | Полное управление системой, пользователями и инфраструктурой. |
 
-Остальные роли платформы и роли ИИ-агента создаются через интерфейс.
+---

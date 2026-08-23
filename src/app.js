@@ -1,71 +1,75 @@
 const express = require('express');
 const cors = require('cors');
-const cookieParser = require('cookie-parser');
+const cookieParser = require('cookie-parser'); 
 const expressWs = require('express-ws');
 
-const { env } = require('../config/env');
 const sendError = require('./utils/error-handler');
 const logger = require('./utils/logger');
 const { getHocuspocus } = require('./services/init-collaboration');
 
-const routes = {
-    '/api/v1/health': require('./routes/health'),
-    '/api/v1/auth': require('./routes/auth'),
-    '/api/v1/profile': require('./routes/profile'),
-    '/api/v1/password': require('./routes/password'),
-    '/api/v1/users': require('./routes/platform-user'),
-    '/api/v1/topics': require('./routes/topic'),
-    '/api/v1/files': require('./routes/file'),
-    '/api/v1/platform/roles': require('./routes/platform-role'),
-    '/api/v1/topic/categories': require('./routes/topic-category'),
-    '/api/v1/logs': require('./routes/log'),
-    '/api/v1/agent/roles': require('./routes/agent-role'),
-    '/api/v1/agent/users': require('./routes/agent-user'),
-    '/api/v1/permissions': require('./routes/permissions'),
-    '/api/v1/actions': require('./routes/actions')
-};
+const userRoutes = require('./routes/platform-user');
+const authRoutes = require('./routes/auth');
+const profileRoutes = require('./routes/profile');
+const passwordRoutes = require('./routes/password');
+const permissionsRoutes = require('./routes/permissions');
+const actionsRoutes = require('./routes/actions');
+const healthRoutes = require('./routes/health');
+const topicRoutes = require('./routes/topic');
+const fileRoutes = require('./routes/file');
+const platformRoleRoutes = require('./routes/platform-role');
+const topicCategoriesRoutes = require('./routes/topic-category');
+const logsRoutes = require('./routes/log');
+const agentRoleRoutes = require('./routes/agent-role');
+const agentUserRoutes = require('./routes/agent-user');
 
 const app = express();
 expressWs(app);
 
 app.set('trust proxy', 1);
 
-app.use(cors({ origin: env.corsOrigins, credentials: true }));
-app.use(express.json({ limit: '1mb' }));
-app.use(express.urlencoded({ extended: true, limit: '1mb' }));
+const isDev = process.env.NODE_ENV === 'development';
+const allowedOrigins = isDev ? ['http://localhost:5174'] : ['https://front-operon123.amvera.io'];
+
+app.use(cors({ origin: allowedOrigins, credentials: true }));
+app.use(express.json());
 app.use(cookieParser());
+app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '10kb' }));
 
 app.ws('/api/v1/collaboration', (ws, req) => {
     const hocuspocus = getHocuspocus();
-
-    if (!hocuspocus) {
+    if (hocuspocus) {
+        hocuspocus.handleConnection(ws, req);
+    } else {
         logger.error('[WS] Hocuspocus ещё не инициализирован');
         ws.close(1011, 'Hocuspocus not ready');
-        return;
     }
-
-    hocuspocus.handleConnection(ws, req);
 });
 
-Object.entries(routes).forEach(([path, router]) => app.use(path, router));
+app.use('/api/v1/health', healthRoutes);
+app.use('/api/v1/auth', authRoutes);
+app.use('/api/v1/profile', profileRoutes);
+app.use('/api/v1/password', passwordRoutes);
+app.use('/api/v1/users', userRoutes);
+app.use('/api/v1/topics', topicRoutes);
+app.use('/api/v1/files', fileRoutes);
+app.use('/api/v1/platform/roles', platformRoleRoutes);
+app.use('/api/v1/topic/categories', topicCategoriesRoutes);
+app.use('/api/v1/logs', logsRoutes);
+app.use('/api/v1/agent/roles', agentRoleRoutes);
+app.use('/api/v1/agent/users', agentUserRoutes);
+app.use('/api/v1/permissions', permissionsRoutes);
+app.use('/api/v1/actions', actionsRoutes);
 
 app.use((req, res) => {
-    sendError(res, 404, `Маршрут ${req.method} ${req.originalUrl} не найден`);
+    sendError(res, 404, `Маршрут ${req.method} ${req.url} не найден`);
 });
 
-// Обработчик ошибок Express распознаётся только по четырём аргументам —
-// сигнатура (err, req, res) превращает его в обычный middleware.
-// eslint-disable-next-line no-unused-vars
-app.use((err, req, res, next) => {
-    const status = err.status || err.statusCode || 500;
-    const isClientError = status < 500;
-    const message = isClientError
-        ? err.message || 'Некорректный запрос'
-        : 'Внутренняя ошибка сервера';
-
-    if (!isClientError) logger.error('Необработанная ошибка', status, err.stack || err.message);
-
-    sendError(res, status, message, err.errors || []);
+app.use((err, req, res) => {
+    const status = err.status || 500;
+    const message = err.message || 'Внутренняя ошибка сервера';
+    const errors = err.errors || []; 
+    sendError(res, status, message, errors);
 });
 
 module.exports = app;

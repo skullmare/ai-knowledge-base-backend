@@ -9,9 +9,7 @@ module.exports = async (req, res) => {
         const category = await TopicCategory.findById(id);
 
         if (!category) {
-            return errorHandler(res, 404, 'Категория не найдена', [
-                { path: 'id', message: `Категория с ID ${id} отсутствует в системе` }
-            ]);
+            return errorHandler(res, 404, 'Категория не найдена');
         }
 
         return successHandler(res, 200, 'Категория получена', category);

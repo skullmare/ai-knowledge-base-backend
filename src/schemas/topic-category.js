@@ -1,20 +1,22 @@
 const mongoose = require('mongoose');
 const { z } = require('zod');
-const { objectId: objectIdSchema } = require('./common');
 
-const objectId = objectIdSchema('Некорректный ID категории');
+const objectId = z.string()
+    .trim()
+    .refine(v => mongoose.Types.ObjectId.isValid(v), "Некорректный ID категории");
 
-// path задаётся только для проверки на уровне объекта: внутри superRefine
-// поля zod дописывает путь сам, иначе в ответе получается "name.name".
-const categoryNameIsUnique = (currentCategoryId = null, path) => async (name, ctx) => {
+const categoryNameIsUnique = (currentCategoryId = null) => async (name, ctx) => {
     const query = { name: name.trim() };
-    if (currentCategoryId) query._id = { $ne: currentCategoryId };
+    if (currentCategoryId) {
+        query._id = { $ne: currentCategoryId };
+    }
 
-    if (await mongoose.model('TopicCategory').exists(query)) {
+    const exists = await mongoose.model('TopicCategory').exists(query);
+    if (exists) {
         ctx.addIssue({
             code: 'custom',
-            message: 'Категория с таким названием уже существует',
-            ...(path ? { path } : {})
+            path: ['name'],
+            message: 'Категория с таким названием уже существует'
         });
     }
 };
@@ -50,7 +52,7 @@ const updateCategorySchema = z.object({
     }
 
     if (data.body.name) {
-        await categoryNameIsUnique(data.params.id, ['body', 'name'])(data.body.name, ctx);
+        await categoryNameIsUnique(data.params.id)(data.body.name, ctx);
     }
 });
 

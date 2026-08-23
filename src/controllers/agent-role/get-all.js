@@ -1,5 +1,4 @@
 const AgentRole = require('../../models/agent-role');
-const { searchRegex } = require('../../utils/query-helpers');
 const successHandler = require('../../utils/success-handler');
 const errorHandler = require('../../utils/error-handler');
 
@@ -10,8 +9,11 @@ module.exports = async (req, res) => {
         const filter = {};
 
         if (search) {
-            const pattern = searchRegex(search);
-            filter.$or = [{ name: pattern }, { description: pattern }];
+            const searchRegex = new RegExp(search, 'i');
+            filter.$or = [
+                { name: searchRegex },
+                { description: searchRegex }
+            ];
         }
 
         const roles = await AgentRole.find(filter)

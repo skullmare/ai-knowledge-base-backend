@@ -38,9 +38,11 @@ coverage/
 .DS_Store
 Thumbs.db
 
-# Отчёты о покрытии
+# Тесты
 coverage/
 .nyc_output/
+*.test.js
+*.spec.js
 
 # Системные файлы
 .DS_Store

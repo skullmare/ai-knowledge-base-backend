@@ -1,14 +1,14 @@
 const { z } = require('zod');
-const { objectId: objectIdSchema, paginationQuery } = require('./common');
-const { ALL_ACTIONS, ALL_CATEGORY } = require('../constants/actions');
+const mongoose = require('mongoose');
 
-const objectId = objectIdSchema();
+const objectId = z.string().refine((val) => mongoose.Types.ObjectId.isValid(val), "Некорректный ID");
 
 const getLogsSchema = z.object({
     query: z.object({
-        ...paginationQuery(20),
-        action: z.enum(ALL_ACTIONS, "Неизвестное событие").optional(),
-        category: z.enum(ALL_CATEGORY, "Неизвестная категория события").optional(),
+        page: z.string().regex(/^\d+$/, "Номер страницы должен быть числом").transform(Number).default("1"),
+        limit: z.string().regex(/^\d+$/, "Лимит должен быть числом").transform(Number).default("20"),
+        action: z.string().optional(),
+        category: z.string().optional(),
         entityId: objectId.optional(),
         user: objectId.optional(),
         status: z.enum(['success', 'error']).optional(),

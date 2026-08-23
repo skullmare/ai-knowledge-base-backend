@@ -40,7 +40,7 @@ module.exports = async (req, res) => {
 
     } catch (error) {
         await logHandler({
-            action: ACTIONS_CONFIG.PASSWORD.actions.SERVER_ERROR.key,
+            action: ACTIONS_CONFIG.PROFILE.actions.SERVER_ERROR.key,
             message: `Критическая ошибка при смене пароля: ${error.message}`,
             userId,
             status: 'error'

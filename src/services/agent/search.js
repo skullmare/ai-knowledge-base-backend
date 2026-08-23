@@ -1,12 +1,14 @@
-const { qdrantClient, collectionName } = require('../../../config/qdrant');
+const { qdrantClient } = require('../../../config/qdrant');
 
-const SEARCH_LIMIT = 5;
+const COLLECTION = process.env.COLLECTION_NAME || 'knowledge_base';
 
 async function searchChunks(queryVector, roleId) {
-    return qdrantClient.search(collectionName, {
+    const must = [{ key: 'metadata.accessibleByRoles', match: { value: roleId } }];
+
+    return qdrantClient.search(COLLECTION, {
         vector: queryVector,
-        filter: { must: [{ key: 'metadata.accessibleByRoles', match: { value: String(roleId) } }] },
-        limit: SEARCH_LIMIT,
+        filter: { must },
+        limit: 5,
         with_payload: true
     });
 }

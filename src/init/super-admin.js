@@ -1,3 +1,4 @@
+require('dotenv').config();
 const PlatformUser = require('../models/platform-user');
 const PlatformRole = require('../models/platform-role');
 const { hashPassword } = require('../utils/password-handler');
