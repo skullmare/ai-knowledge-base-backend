@@ -43,6 +43,9 @@ async function extractChunks(buffer, filename, mimeType) {
     try {
         return await getDoclingChunksFromFile(buffer, filename, mimeType);
     } catch (error) {
+        // Недоступный сервис — это не «формат не поддерживается»: не подменяем причину
+        if (error.isDoclingUnavailable) throw error;
+
         throw new Error(
             `Формат файла "${extension || mimeType || 'неизвестный'}" не поддерживается для векторизации: ${error.message}`,
             { cause: error }

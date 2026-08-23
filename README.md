@@ -64,6 +64,7 @@ JWT_REFRESH_SECRET=your_refresh_secret
 ROUTER_AI_API_KEY=your_router_ai_key
 ROUTER_AI_BASE_URL=https://openrouter.ai/api/v1
 DOCLING_URL=http://localhost:5001
+DOCLING_TIMEOUT_MS=300000
 
 # Google Drive (первичное заполнение настроек; далее — через интерфейс)
 GOOGLE_CLIENT_ID=
@@ -123,7 +124,31 @@ multipart-загрузки (`POST /api/v1/files/multipart/create` → `.../sign`
 бакета должен быть разрешён метод `PUT` и выставлен `ExposeHeaders: ["ETag"]` —
 иначе браузер не сможет прочитать ETag части и собрать файл.
 
-### 7. Ссылка на документацию по API
+### 7. Диагностика
+
+`GET /api/v1/health` — живость самого сервиса (без авторизации).
+
+`GET /api/v1/health/services` — состояние внешних сервисов (нужен access token).
+Отвечает `200`, если всё доступно, и `503` со списком проблем, если нет:
+
+```json
+{
+  "success": false,
+  "message": "Часть сервисов недоступна",
+  "data": { "checks": [
+    { "name": "mongodb", "ok": true,  "message": "Соединение подключена" },
+    { "name": "qdrant",  "ok": true,  "message": "Коллекция knowledge_base, размерность 3072, точек: 0" },
+    { "name": "docling", "ok": false, "message": "Docling (…/health) ответил 503. Сервис разбора документов недоступен…" },
+    { "name": "routerai","ok": true,  "message": "Доступно моделей: 318" }
+  ] }
+}
+```
+
+Проверка `qdrant` отдельно ловит расхождение размерности коллекции с настройкой
+«Размерность векторов» — самую частую причину падения векторизации после смены
+модели эмбеддингов.
+
+### 8. Ссылка на документацию по API
 
 [![Postman](https://img.shields.io/badge/Postman-FF6C37?style=for-the-badge&logo=postman&logoColor=white)](https://www.postman.com/rocketmind/rocketmind/documentation/33378290-e357ac2b-9202-4baf-8bb6-3f697af3f79f)
 
