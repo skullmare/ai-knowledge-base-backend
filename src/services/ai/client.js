@@ -6,7 +6,28 @@ let cached = { apiKey: null, baseURL: null, client: null };
 // Хвостовой слеш даёт «/v1//embeddings» — часть шлюзов на это отвечает 401
 const normalizeBaseURL = (value) => (value ?? '').trim().replace(/\/+$/, '');
 
-const normalizeApiKey = (value) => (value ?? '').trim();
+/**
+ * Из ключа выбрасываются все пробельные и невидимые символы: их приносит
+ * копипаст (перенос строки, неразрывный пробел, zero-width), а API-ключ
+ * не может их содержать. Строка из одних таких символов станет пустой,
+ * и её поймает проверка ниже — вместо пустого заголовка Authorization.
+ */
+const INVISIBLE_CHARS = /[\s\u00A0\u200B-\u200D\u2060\uFEFF]/g;
+
+const normalizeApiKey = (value) => (value ?? '').replace(INVISIBLE_CHARS, '');
+
+/**描述 ключа для диагностики — без раскрытия самого значения. */
+const describeApiKey = (raw) => {
+    const original = raw ?? '';
+    const normalized = normalizeApiKey(original);
+
+    return {
+        isSet: Boolean(normalized),
+        length: normalized.length,
+        preview: normalized ? `${normalized.slice(0, 4)}…${normalized.slice(-4)}` : null,
+        hadInvisibleChars: original.length !== normalized.length,
+    };
+};
 
 /**
  * OpenAI-совместимый клиент, сконфигурированный из системных настроек.
@@ -50,4 +71,11 @@ function invalidateAIClient() {
     cached = { apiKey: null, baseURL: null, client: null };
 }
 
-module.exports = { getAIClient, createAIClient, invalidateAIClient, normalizeBaseURL, normalizeApiKey };
+module.exports = {
+    getAIClient,
+    createAIClient,
+    invalidateAIClient,
+    normalizeBaseURL,
+    normalizeApiKey,
+    describeApiKey,
+};

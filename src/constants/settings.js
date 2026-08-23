@@ -53,9 +53,9 @@ const SETTINGS_DEFINITIONS = [
         key: 'ai_base_url',
         name: 'Базовый URL API',
         group: SETTINGS_GROUPS.AI,
-        value: 'https://openrouter.ai/api/v1',
+        value: 'https://routerai.ru/api/v1',
         envFallback: 'ROUTER_AI_BASE_URL',
-        description: 'Адрес OpenAI-совместимого API. Для OpenAI укажите https://api.openai.com/v1.',
+        description: 'Адрес OpenAI-совместимого API RouterAI.',
     },
     // ── Агент ───────────────────────────────────────────────────────────────
     {
