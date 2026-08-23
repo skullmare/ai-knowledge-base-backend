@@ -1,5 +1,5 @@
 const { qdrantClient } = require('../../../config/qdrant');
-const { getNumberSetting } = require('../settings');
+const { EMBEDDING_DIMENSIONS } = require('../../constants/ai');
 const logger = require('../../utils/logger');
 
 const COLLECTION = process.env.COLLECTION_NAME || 'knowledge_base';
@@ -18,7 +18,7 @@ const PAYLOAD_INDEXES = [
  * поэтому их признаки индексации сбрасываются здесь же.
  */
 async function recreateCollection() {
-    const vectorSize = await getNumberSetting('ai_embedding_dimensions', 3072);
+    const vectorSize = EMBEDDING_DIMENSIONS;
 
     const collections = await qdrantClient.getCollections();
     if (collections.collections.some(c => c.name === COLLECTION)) {

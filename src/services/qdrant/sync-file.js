@@ -2,36 +2,41 @@ const crypto = require('crypto');
 const { qdrantClient } = require('../../../config/qdrant');
 const { deleteFileFromQdrant } = require('./delete-chunk');
 const { getEmbeddings } = require('../ai/get-embeddings');
+const { EMBEDDING_LIMITS } = require('../../constants/ai');
 
 const COLLECTION = process.env.COLLECTION_NAME || 'knowledge_base';
 
 /**
- * Кладёт чанки файла в векторную базу, предварительно удалив прошлые.
+ * Кладёт сегменты файла в векторную базу, предварительно удалив прошлые.
+ *
  * @param {import('mongoose').Document} file — документ KnowledgeFile
- * @param {string[]} chunks — текстовые фрагменты файла
+ * @param {{ kind: 'text'|'file', segments: Array<{input: string|object, text: string}> }} prepared
  * @returns {Promise<number>} количество загруженных точек
  */
-async function syncFileToQdrant(file, chunks) {
+async function syncFileToQdrant(file, { kind, segments }) {
     const fileId = file._id.toString();
 
     await deleteFileFromQdrant(fileId);
 
-    if (!chunks.length) return 0;
+    if (!segments.length) return 0;
 
-    const embeddings = await getEmbeddings(chunks);
+    // Файлы уходят по одному: лимиты модели считаются на запрос, а не на вход
+    const batchSize = kind === 'file' ? 1 : EMBEDDING_LIMITS.TEXT_BATCH;
+    const embeddings = await getEmbeddings(segments.map((s) => s.input), { batchSize });
 
-    const roleIds = (file.accessibleByRoles || []).map(role => (role._id ?? role).toString());
+    const roleIds = (file.accessibleByRoles || []).map((role) => (role._id ?? role).toString());
+    const link = file.source === 'google_drive' ? file.google?.webViewLink : file.storage?.url;
 
     const points = embeddings.map((item, i) => ({
         id: crypto.randomUUID(),
         vector: item.embedding,
         payload: {
-            text: chunks[i],
+            text: segments[i].text,
             metadata: {
                 source: file.source === 'google_drive' ? 'google_drive' : 'file',
                 fileId,
                 name: file.name,
-                link: file.source === 'google_drive' ? file.google?.webViewLink : file.storage?.url,
+                link,
                 accessibleByRoles: roleIds,
             }
         }

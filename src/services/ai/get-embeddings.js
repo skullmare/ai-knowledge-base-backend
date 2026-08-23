@@ -1,26 +1,27 @@
 const { getAIClient } = require('./client');
-const { getSetting } = require('../settings');
-
-// Провайдеры ограничивают размер батча — режем вход на порции
-const BATCH_SIZE = 64;
+const { EMBEDDING_MODEL, EMBEDDING_LIMITS } = require('../../constants/ai');
 
 /**
- * @param {string[]} chunks
+ * Считает эмбеддинги для списка входов.
+ * Вход — либо строка, либо мультимодальная запись вида
+ * `{ content: [{ type: 'file', file: {...} }] }` (Gemini Embedding 2
+ * принимает файлы напрямую, без внешнего разбора документов).
+ *
+ * @param {Array<string|object>} inputs
+ * @param {{ batchSize?: number }} [options]
  * @returns {Promise<Array<{ embedding: number[], index: number }>>}
  */
-async function getEmbeddings(chunks) {
-    if (!chunks?.length) return [];
+async function getEmbeddings(inputs, { batchSize = EMBEDDING_LIMITS.TEXT_BATCH } = {}) {
+    if (!inputs?.length) return [];
 
     const client = await getAIClient();
-    const model = await getSetting('ai_embedding_model');
-
     const result = [];
 
-    for (let offset = 0; offset < chunks.length; offset += BATCH_SIZE) {
-        const batch = chunks.slice(offset, offset + BATCH_SIZE);
+    for (let offset = 0; offset < inputs.length; offset += batchSize) {
+        const batch = inputs.slice(offset, offset + batchSize);
 
         const response = await client.embeddings.create({
-            model,
+            model: EMBEDDING_MODEL,
             input: batch,
             encoding_format: 'float',
         });
