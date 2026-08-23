@@ -1,4 +1,5 @@
 const Topic = require('../../models/topic');
+const { TOPIC_POPULATE } = require('../../constants/topic-populate');
 const successHandler = require('../../utils/success-handler');
 const errorHandler = require('../../utils/error-handler');
 const logHandler = require('../../utils/log-handler');
@@ -9,26 +10,18 @@ module.exports = async (req, res) => {
     const data = req.validatedData.body;
 
     try {
-        const result = await Topic.create({
-            ...data,
-            createdBy: userId,
-            status: 'review'
-        });
-
-        await result.populate('metadata.category', 'name');
-        await result.populate('metadata.accessibleByRoles', 'name');
-        await result.populate('createdBy', 'firstName lastName photoUrl');
-        await result.populate('updatedBy', 'firstName lastName photoUrl');
+        const topic = await Topic.create({ ...data, createdBy: userId, status: 'review' });
+        await topic.populate(TOPIC_POPULATE);
 
         await logHandler({
             action: ACTIONS_CONFIG.TOPICS.actions.CREATE.key,
-            message: `Создана новая тема: "${result.name}"`,
+            message: `Создана новая тема: "${topic.name}"`,
             userId,
-            entityId: result._id,
+            entityId: topic._id,
             status: 'success'
         });
 
-        return successHandler(res, 201, 'Тема успешно создана и отправлена на проверку', result);
+        return successHandler(res, 201, 'Тема успешно создана и отправлена на проверку', topic);
 
     } catch (error) {
         await logHandler({
@@ -38,11 +31,8 @@ module.exports = async (req, res) => {
             status: 'error'
         });
 
-        return errorHandler(
-            res,
-            500,
-            'Ошибка сервера при создании темы',
-            [{ path: 'server', message: error.message }]
-        );
+        return errorHandler(res, 500, 'Ошибка сервера при создании темы', [
+            { path: 'server', message: error.message }
+        ]);
     }
 };

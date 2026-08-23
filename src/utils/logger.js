@@ -1,6 +1,8 @@
 const winston = require('winston');
 require('winston-daily-rotate-file');
 
+const { env } = require('../../config/env');
+
 const { combine, timestamp, printf, colorize, json } = winston.format;
 
 const consoleFormat = printf(({ level, message, timestamp, statusCode, details }) => {
@@ -24,30 +26,29 @@ const fileFormat = combine(
     json()
 );
 
-const successTransport = new winston.transports.DailyRotateFile({
-    filename: 'logs/success-%DATE%.log',
+const createFileTransport = (options) => new winston.transports.DailyRotateFile({
     datePattern: 'YYYY-MM-DD',
     maxSize: '20m',
-    maxFiles: '14d',
     format: fileFormat,
+    silent: env.isTest,
+    ...options
+});
+
+const successTransport = createFileTransport({
+    filename: 'logs/success-%DATE%.log',
+    maxFiles: '14d',
     level: 'info'
 });
 
-const errorTransport = new winston.transports.DailyRotateFile({
+const errorTransport = createFileTransport({
     filename: 'logs/error-%DATE%.log',
-    datePattern: 'YYYY-MM-DD',
-    maxSize: '20m',
     maxFiles: '30d',
-    format: fileFormat,
     level: 'error'
 });
 
-const debugTransport = new winston.transports.DailyRotateFile({
+const debugTransport = createFileTransport({
     filename: 'logs/debug-%DATE%.log',
-    datePattern: 'YYYY-MM-DD',
-    maxSize: '20m',
     maxFiles: '7d',
-    format: fileFormat,
     level: 'debug'
 });
 
@@ -69,6 +70,8 @@ const winstonLogger = winston.createLogger({
         errorTransport,
         debugTransport
     ],
+    // В тестах логи только зашумляют вывод и плодят файлы в logs/.
+    silent: env.isTest,
     exitOnError: false
 });
 

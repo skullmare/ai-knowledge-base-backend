@@ -11,6 +11,12 @@ module.exports = async (req, res) => {
     try {
         const category = await TopicCategory.findByIdAndDelete(id);
 
+        if (!category) {
+            return errorHandler(res, 404, 'Категория не найдена', [
+                { path: 'id', message: `Категория с ID ${id} отсутствует в системе` }
+            ]);
+        }
+
         await logHandler({
             action: ACTIONS_CONFIG.TOPIC_CATEGORIES.actions.DELETE.key,
             message: `Удалена категория: ${category.name}`,

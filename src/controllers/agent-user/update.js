@@ -1,10 +1,9 @@
 const AgentUser = require('../../models/agent-user');
+const { notifyAccessGranted } = require('../../services/agent-user/notify');
 const successHandler = require('../../utils/success-handler');
 const errorHandler = require('../../utils/error-handler');
 const logHandler = require('../../utils/log-handler');
 const { ACTIONS_CONFIG } = require('../../constants/actions');
-const { getBot: getTGBot } = require('../../services/telegram/bot');
-const { getBot: getMAXBot } = require('../../services/max/bot');
 
 module.exports = async (req, res) => {
     const currentPlatformUserId = req.user?.id;
@@ -12,57 +11,36 @@ module.exports = async (req, res) => {
     const data = req.validatedData.body;
 
     try {
-        const previousUser = await AgentUser.findById(id);
-        const roleWasNull = previousUser && !previousUser.role;
+        const previous = await AgentUser.findById(id).lean();
 
-        if (data.role) {
-            data.status = 'active';
+        if (!previous) {
+            return errorHandler(res, 404, 'Пользователь не найден', [
+                { path: 'id', message: 'Пользователь с указанным ID не существует' }
+            ]);
         }
-        const updatedAgentUser = await AgentUser.findByIdAndUpdate(
+
+        // Назначение роли — это и есть выдача доступа, статус pending после неё бессмысленен.
+        const update = data.role ? { ...data, status: data.status ?? 'active' } : { ...data };
+
+        const agentUser = await AgentUser.findByIdAndUpdate(
             id,
-            { $set: data },
+            { $set: update },
             { returnDocument: 'after', runValidators: true }
         ).populate('role', 'name');
 
-        if (!updatedAgentUser) {
-            await logHandler({
-                action: ACTIONS_CONFIG.AGENT_USERS.actions.UPDATE.key,
-                message: `Попытка обновить несуществующего пользователя (ID: ${id})`,
-                userId: currentPlatformUserId,
-                status: 'error'
-            });
-
-            return errorHandler(
-                res,
-                404,
-                'Пользователь не найден',
-                [{ path: 'id', message: 'Пользователь с указанным ID не существует' }]
-            );
-        }
-
         await logHandler({
             action: ACTIONS_CONFIG.AGENT_USERS.actions.UPDATE.key,
-            message: `Обновлены данные пользователя (ID: ${updatedAgentUser._id})`,
+            message: `Обновлены данные пользователя (ID: ${agentUser._id})`,
             userId: currentPlatformUserId,
-            entityId: updatedAgentUser._id,
+            entityId: agentUser._id,
             status: 'success'
         });
 
-        if (roleWasNull && updatedAgentUser.role) {
-            const notificationText = 'Вам предоставлен доступ к ИИ-агенту. Напишите сообщение, чтобы начать.';
-
-            if (updatedAgentUser.chatIdTG) {
-                const tgBot = getTGBot();
-                if (tgBot) tgBot.sendMessage(updatedAgentUser.chatIdTG, notificationText).catch(() => {});
-            }
-
-            if (updatedAgentUser.chatIdMAX) {
-                const maxBot = getMAXBot();
-                if (maxBot) maxBot.sendMessageToUser(updatedAgentUser.chatIdMAX, notificationText).catch(() => {});
-            }
+        if (!previous.role && agentUser.role) {
+            await notifyAccessGranted(agentUser);
         }
 
-        return successHandler(res, 200, 'Данные пользователя успешно обновлены', updatedAgentUser);
+        return successHandler(res, 200, 'Данные пользователя успешно обновлены', agentUser);
 
     } catch (error) {
         await logHandler({
@@ -72,11 +50,8 @@ module.exports = async (req, res) => {
             status: 'error'
         });
 
-        return errorHandler(
-            res,
-            500,
-            'Ошибка сервера при обновлении пользователя',
-            [{ path: 'server', message: error.message }]
-        );
+        return errorHandler(res, 500, 'Ошибка сервера при обновлении пользователя', [
+            { path: 'server', message: error.message }
+        ]);
     }
 };

@@ -1,5 +1,4 @@
 const PlatformUser = require('../../models/platform-user');
-const { hashPassword } = require('../../utils/password-handler');
 const successHandler = require('../../utils/success-handler');
 const errorHandler = require('../../utils/error-handler');
 const logHandler = require('../../utils/log-handler');
@@ -15,8 +14,14 @@ module.exports = async (req, res) => {
         const updatedPlatformUser = await PlatformUser.findByIdAndUpdate(
             id,
             { $set: data },
-            { returnDocument: 'after' }
+            { returnDocument: 'after', runValidators: true }
         ).populate('role', 'name');
+
+        if (!updatedPlatformUser) {
+            return errorHandler(res, 404, 'Пользователь не найден', [
+                { path: 'id', message: `Пользователь с ID ${id} отсутствует в системе` }
+            ]);
+        }
 
         await logHandler({
             action: ACTIONS_CONFIG.PLATFORM_USERS.actions.UPDATE.key,

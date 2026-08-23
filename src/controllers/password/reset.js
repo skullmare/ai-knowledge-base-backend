@@ -15,8 +15,8 @@ module.exports = async (req, res) => {
 
         const user = await PlatformUser.findOne({
             resetPasswordToken: hashedToken,
-            resetPasswordExpires: { $gt: Date.now() }
-        }).select('+resetPasswordToken +resetPasswordExpires');
+            resetPasswordExpires: { $gt: new Date() }
+        }).select('+password +resetPasswordToken +resetPasswordExpires');
 
         if (!user) {
             return errorHandler(res, 400, 'Ссылка недействительна или срок её действия истек', [{path: "token", message: "Некорректный токен"}]);

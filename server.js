@@ -1,11 +1,10 @@
 require('dotenv').config();
+
 const app = require('./src/app');
+const { env, assertRequiredEnv } = require('./config/env');
 const { connectDB, disconnectDB } = require('./config/mongo');
 const { seedPlatformRoles } = require('./src/init/platform-role');
-const { seedAgentRoles } = require('./src/init/agent-role');
 const { seedSuperAdmin } = require('./src/init/super-admin');
-const { seedSystemSettings } = require('./src/init/system-settings');
-const { seedTopicCategories } = require('./src/init/topic-category');
 const { syncAgentUserIndexes } = require('./src/init/agent-user-index');
 const { initQdrant } = require('./src/init/qdrant');
 const { initHocuspocus } = require('./src/services/init-collaboration');
@@ -13,48 +12,63 @@ const { initBot } = require('./src/services/telegram/bot');
 const { initMaxBot } = require('./src/services/max/bot');
 const logger = require('./src/utils/logger');
 
-const PORT = process.env.PORT || 3000;
-let server;
+const SHUTDOWN_TIMEOUT_MS = 10_000;
+
+let server = null;
+let shuttingDown = false;
 
 const startServer = async () => {
-  try {
+    assertRequiredEnv();
+
     await connectDB();
-    
+
     await seedPlatformRoles();
-    // await seedAgentRoles();
-    // await seedSystemSettings();
-    // await seedTopicCategories();
     await seedSuperAdmin();
     await syncAgentUserIndexes();
     await initQdrant();
     await initHocuspocus();
+
     initBot();
     initMaxBot();
 
-    server = app.listen(PORT, () => {
-      logger.success(`Сервер запущен на порту ${PORT} | http://localhost:${PORT}`);
+    server = app.listen(env.port, () => {
+        logger.success(`Сервер запущен на порту ${env.port} | http://localhost:${env.port}`);
     });
-  } catch (error) {
-    logger.error('Ошибка при запуске', null, error.message || error);
-    process.exit(1);
-  }
 };
 
-const gracefulShutdown = async (signal) => {
-  logger.error(`Получен сигнал ${signal}`);
+const closeServer = () => new Promise((resolve) => {
+    if (!server) return resolve();
 
-  if (server) {
+    // Если открытые соединения не дают закрыться — выходим по таймауту,
+    // иначе контейнер висит до SIGKILL.
+    const timer = setTimeout(resolve, SHUTDOWN_TIMEOUT_MS);
     server.close(() => {
-      logger.error('Сервер остановлен');
+        clearTimeout(timer);
+        resolve();
     });
-  }
+});
 
-  await disconnectDB();
-  logger.success('Приложение остановлено');
-  process.exit(0);
+const gracefulShutdown = async (signal) => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+
+    logger.warn(`Получен сигнал ${signal}, останавливаем приложение`);
+
+    await closeServer();
+    await disconnectDB();
+
+    logger.success('Приложение остановлено');
+    process.exit(0);
 };
 
 process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
-startServer();
+process.on('unhandledRejection', (reason) => {
+    logger.error('Необработанное отклонение промиса', null, reason?.message || reason);
+});
+
+startServer().catch((error) => {
+    logger.error('Ошибка при запуске', null, error.message || error);
+    process.exit(1);
+});

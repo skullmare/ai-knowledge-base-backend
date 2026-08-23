@@ -1,48 +1,22 @@
 const mongoose = require('mongoose');
 const { z } = require('zod');
+const { objectId: objectIdSchema, dbExists, paginationQuery } = require('./common');
 
-// --- Вспомогательные функции ---
+const objectId = objectIdSchema();
 
-const objectId = z.string()
-    .trim()
-    .refine(v => mongoose.Types.ObjectId.isValid(v), "Некорректный ID");
+// path указывается только при проверке на уровне объекта: внутри
+// superRefine поля zod дописывает путь сам, иначе получается "login.login".
+const fieldIsUnique = (field, message) => (currentUserId = null, path) => async (value, ctx) => {
+    const query = { [field]: String(value).toLowerCase() };
+    if (currentUserId) query._id = { $ne: currentUserId };
 
-const dbExists = (modelName) => async (id, ctx) => {
-    const exists = await mongoose.model(modelName).exists({ _id: id });
-    if (!exists) ctx.addIssue({ code: 'custom', message: `${modelName} не найден` });
-};
-
-const loginIsUnique = (currentUserId = null) => async (login, ctx) => {
-    const query = { login: login.toLowerCase() };
-    if (currentUserId) {
-        query._id = { $ne: currentUserId };
-    }
-
-    const exists = await mongoose.model('PlatformUser').exists(query);
-    if (exists) {
-        ctx.addIssue({
-            code: 'custom',
-            path: ['body', 'login'],
-            message: 'Этот логин уже занят другим пользователем'
-        });
+    if (await mongoose.model('PlatformUser').exists(query)) {
+        ctx.addIssue({ code: 'custom', message, ...(path ? { path } : {}) });
     }
 };
 
-const emailIsUnique = (currentUserId = null) => async (email, ctx) => {
-    const query = { email: email.toLowerCase() };
-    if (currentUserId) {
-        query._id = { $ne: currentUserId };
-    }
-
-    const exists = await mongoose.model('PlatformUser').exists(query);
-    if (exists) {
-        ctx.addIssue({
-            code: 'custom',
-            path: ['body', 'email'],
-            message: 'Этот email уже занят другим пользователем'
-        });
-    }
-};
+const loginIsUnique = fieldIsUnique('login', 'Этот логин уже занят другим пользователем');
+const emailIsUnique = fieldIsUnique('email', 'Этот email уже занят другим пользователем');
 
 const createUserSchema = z.object({
     body: z.object({
@@ -56,7 +30,7 @@ const createUserSchema = z.object({
             .superRefine(loginIsUnique()),
         email: z.email("Некорректный формат email").superRefine(emailIsUnique()),
         role: objectId.pipe(z.string("Роль обязательна").superRefine(dbExists('PlatformRole'))),
-        photoUrl: z.string().url("Некорректная ссылка на фото").optional().or(z.literal('')),
+        photoUrl: z.url("Некорректная ссылка на фото").optional().or(z.literal('')),
         status: z.enum(['active', 'blocked'], "Недопустимый статус. Доступны: active, blocked").default('active')
     })
 });
@@ -71,7 +45,7 @@ const updateUserSchema = z.object({
         login: z.string().trim().min(3, "Логин должен быть не менее 3 символов").max(30, "Логин должен быть не более 30 символов").transform(val => val.toLowerCase()).optional(),
         email: z.email("Некорректный формат email").optional(),
         role: objectId.pipe(z.string().superRefine(dbExists('PlatformRole'))).optional(),
-        photoUrl: z.string().url("Некорректная ссылка на фото").optional().or(z.literal('')),
+        photoUrl: z.url("Некорректная ссылка на фото").optional().or(z.literal('')),
         status: z.enum(['active', 'blocked'], "Недопустимый статус. Доступны: active, blocked").optional()
     })
 }).superRefine(async (data, ctx) => {
@@ -101,19 +75,18 @@ const updateUserSchema = z.object({
     }
 
     if (data.body.login) {
-        await loginIsUnique(data.params.id)(data.body.login, ctx);
+        await loginIsUnique(data.params.id, ['body', 'login'])(data.body.login, ctx);
     }
 
     if (data.body.email) {
-        await emailIsUnique(data.params.id)(data.body.email, ctx);
+        await emailIsUnique(data.params.id, ['body', 'email'])(data.body.email, ctx);
     }
 });
 
 const getAllUsersSchema = z.object({
     query: z.object({
-        page: z.string().regex(/^\d+$/, "Номер страницы должен быть числом").transform(Number).default("1"),
-        limit: z.string().regex(/^\d+$/, "Лимит должен быть числом").transform(Number).default("10"),
-        search: z.string().optional(),
+        ...paginationQuery(10),
+        search: z.string().trim().optional(),
         role: objectId.optional(),
         status: z.enum(['active', 'blocked'], "Недопустимый статус. Доступны: active, blocked").optional()
     })

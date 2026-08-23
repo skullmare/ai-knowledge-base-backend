@@ -1,7 +1,6 @@
 const crypto = require('crypto');
-const bcrypt = require('bcryptjs');
 const PlatformUser = require('../../models/platform-user');
-const { comparePassword } = require('../../utils/password-handler');
+const { hashPassword, comparePassword } = require('../../utils/password-handler');
 const { sendEmail } = require('../../services/email/send-email');
 const twoFactorCodeTemplate = require('../../utils/templates/two-factor-code');
 const successHandler = require('../../utils/success-handler');
@@ -12,18 +11,35 @@ const logger = require('../../utils/logger');
 
 const TWO_FACTOR_CODE_TTL_MS = 15 * 60 * 1000;
 const TWO_FACTOR_COOLDOWN_MS = 5 * 60 * 1000;
+const MAX_ATTEMPTS = 3;
+
+const invalidCredentials = (res) => errorHandler(res, 401, 'Ошибка авторизации', [
+    { path: 'login', message: 'Неверный логин или пароль' }
+]);
 
 module.exports = async (req, res) => {
+    const { login: userLogin, password } = req.validatedData.body;
+
     try {
-        const { login: userLogin, password } = req.body;
         const user = await PlatformUser.findOne({ login: userLogin }).select(
             '+password +twoFactorCode +twoFactorCodeSentAt +twoFactorAttempts'
         );
 
         if (!user || !(await comparePassword(password, user.password))) {
+            await logHandler({
+                action: ACTIONS_CONFIG.AUTH.actions.LOGIN_FAILED.key,
+                message: `Неудачная попытка входа с логином "${userLogin}"`,
+                userId: user?._id ?? null,
+                status: 'error'
+            });
 
-            return errorHandler(res, 401, 'Ошибка авторизации', [
-                { path: 'login', message: 'Неверный логин или пароль' }
+            return invalidCredentials(res);
+        }
+
+        // Заблокированный аккаунт не должен даже получать код подтверждения.
+        if (user.status === 'blocked') {
+            return errorHandler(res, 403, 'Доступ запрещён', [
+                { path: 'login', message: 'Ваш аккаунт заблокирован' }
             ]);
         }
 
@@ -32,28 +48,27 @@ module.exports = async (req, res) => {
         if (user.twoFactorCode && user.twoFactorCodeSentAt) {
             const sentAt = new Date(user.twoFactorCodeSentAt);
             const codeExpired = now > new Date(sentAt.getTime() + TWO_FACTOR_CODE_TTL_MS);
-            const isBlocked = user.twoFactorAttempts >= 3;
+            const isBlocked = user.twoFactorAttempts >= MAX_ATTEMPTS;
 
             if (!codeExpired && !isBlocked) {
-                return successHandler(res, 200, 'Код подтверждения уже отправлен на вашу почту');
+                return successHandler(res, 200, 'Код подтверждения уже отправлен на вашу почту', null);
             }
 
             if (isBlocked) {
                 const cooldownEnd = new Date(sentAt.getTime() + TWO_FACTOR_COOLDOWN_MS);
                 if (now < cooldownEnd) {
-                    const remainingMs = cooldownEnd - now;
-                    const remainingMin = Math.ceil(remainingMs / 60000);
-                    return errorHandler(res, 429, `Превышено количество попыток. Повторите через ${remainingMin} мин.`);
+                    const remainingMin = Math.ceil((cooldownEnd - now) / 60000);
+                    return errorHandler(res, 429, `Превышено количество попыток. Повторите через ${remainingMin} мин.`, [
+                        { path: 'code', message: 'Слишком много неудачных попыток ввода кода' }
+                    ]);
                 }
             }
         }
 
         const plainCode = String(crypto.randomInt(100000, 1000000));
-        const salt = await bcrypt.genSalt(10);
-        const hashedCode = await bcrypt.hash(plainCode, salt);
 
         await PlatformUser.findByIdAndUpdate(user._id, {
-            twoFactorCode: hashedCode,
+            twoFactorCode: await hashPassword(plainCode),
             twoFactorCodeSentAt: now,
             twoFactorAttempts: 0
         });
@@ -71,10 +86,11 @@ module.exports = async (req, res) => {
             status: 'success'
         });
 
-        return successHandler(res, 200, 'Код подтверждения отправлен на вашу почту');
+        return successHandler(res, 200, 'Код подтверждения отправлен на вашу почту', null);
 
     } catch (error) {
         logger.error('Ошибка при входе', null, error.message);
+
         await logHandler({
             action: ACTIONS_CONFIG.AUTH.actions.SERVER_ERROR.key,
             message: `Ошибка сервера при входе: ${error.message}`,
@@ -83,7 +99,7 @@ module.exports = async (req, res) => {
         });
 
         return errorHandler(res, 500, 'Ошибка сервера', [
-            { path: 'server', message: error.message }
+            { path: 'server', message: 'Не удалось выполнить вход' }
         ]);
     }
 };

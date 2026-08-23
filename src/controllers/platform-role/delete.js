@@ -11,6 +11,12 @@ module.exports = async (req, res) => {
     try {
         const role = await PlatformRole.findByIdAndDelete(id);
 
+        if (!role) {
+            return errorHandler(res, 404, 'Роль не найдена', [
+                { path: 'id', message: `Роль с ID ${id} отсутствует в системе` }
+            ]);
+        }
+
         await logHandler({
             action: ACTIONS_CONFIG.PLATFORM_ROLES.actions.DELETE.key,
             message: `Удалена роль: ${role.name}`,

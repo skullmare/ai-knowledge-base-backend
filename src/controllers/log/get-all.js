@@ -2,6 +2,7 @@ const Log = require('../../models/log');
 const successHandler = require('../../utils/success-handler');
 const errorHandler = require('../../utils/error-handler');
 const { ACTION_LABEL_MAP, ACTION_GROUP_LABEL_MAP } = require('../../constants/actions');
+const { searchRegex, buildPagination } = require('../../utils/query-helpers');
 
 module.exports = async (req, res) => {
     const { 
@@ -26,9 +27,7 @@ module.exports = async (req, res) => {
         if (user) filter.user = user;
         if (status) filter.status = status;
 
-        if (search) {
-            filter.message = new RegExp(search, 'i');
-        }
+        if (search) filter.message = searchRegex(search);
 
         if (startDate || endDate) {
             filter.createdAt = {};
@@ -36,25 +35,15 @@ module.exports = async (req, res) => {
             if (endDate) filter.createdAt.$lte = new Date(endDate);
         }
 
-        const current = page;
-        const skip = (current - 1) * limit;
-
         const [logs, total] = await Promise.all([
             Log.find(filter)
                 .populate('user', 'photoUrl firstName lastName')
                 .sort({ createdAt: -1 })
-                .skip(skip)
+                .skip((page - 1) * limit)
                 .limit(limit)
                 .lean(),
             Log.countDocuments(filter)
         ]);
-
-        const pagination = {
-            total,
-            current,
-            limit,
-            pages: Math.ceil(total / limit)
-        };
 
         const localizedLogs = logs.map(log => ({
             ...log,
@@ -67,7 +56,7 @@ module.exports = async (req, res) => {
             200,
             'Логи успешно получены',
             localizedLogs,
-            pagination
+            buildPagination(total, page, limit)
         );
 
     } catch (error) {

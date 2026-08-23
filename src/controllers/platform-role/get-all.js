@@ -1,4 +1,5 @@
 const PlatformRole = require('../../models/platform-role');
+const { searchRegex } = require('../../utils/query-helpers');
 const successHandler = require('../../utils/success-handler');
 const errorHandler = require('../../utils/error-handler');
 
@@ -7,9 +8,7 @@ module.exports = async (req, res) => {
 
     try {
         const filter = {};
-        if (search) {
-            filter.name = { $regex: search, $options: 'i' };
-        }
+        if (search) filter.name = searchRegex(search);
         if (typeof isSystem === 'boolean') {
             filter.isSystem = isSystem;
         }

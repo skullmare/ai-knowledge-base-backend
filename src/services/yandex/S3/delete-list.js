@@ -1,36 +1,21 @@
-const { DeleteObjectsCommand } = require("@aws-sdk/client-s3");
-const logger = require('../../../utils/logger');
+const { DeleteObjectsCommand } = require('@aws-sdk/client-s3');
 const { s3Client } = require('../../../../config/yandexcloud');
-
-const BUCKET = process.env.BUCKET_NAME;
-
-const getFileKeyFromUrl = (url) => {
-    const parts = url.split(`${BUCKET}/`);
-    return parts.length > 1 ? parts[1] : null;
-};
+const { env } = require('../../../../config/env');
+const { extractKeyFromUrl } = require('./url');
+const logger = require('../../../utils/logger');
 
 async function deleteMultipleFilesFromS3(urls) {
-    if (!urls || !urls.length) return;
-
-    const keys = urls
-        .map(url => getFileKeyFromUrl(url))
-        .filter(key => key !== null);
-
+    const keys = (urls || []).map(extractKeyFromUrl).filter(Boolean);
     if (!keys.length) return;
 
     try {
         await s3Client.send(new DeleteObjectsCommand({
-            Bucket: BUCKET,
-            Delete: {
-                Objects: keys.map(key => ({ Key: key })),
-                Quiet: true
-            }
+            Bucket: env.bucketName,
+            Delete: { Objects: keys.map(Key => ({ Key })), Quiet: true }
         }));
-    } catch (e) {
-        logger.error(`[S3-Bulk-Delete-Error]: ${e.message}`);
+    } catch (error) {
+        logger.error(`[S3-Bulk-Delete-Error]: ${error.message}`);
     }
 }
 
-module.exports = {
-    deleteMultipleFilesFromS3
-};
+module.exports = { deleteMultipleFilesFromS3 };

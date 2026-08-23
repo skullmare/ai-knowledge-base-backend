@@ -1,11 +1,10 @@
-const { qdrantClient } = require('../../../config/qdrant');
-
-const { COLLECTION_NAME } = process.env;
+const { qdrantClient, collectionName } = require('../../../config/qdrant');
 
 async function deleteTopicFromQdrant(topicId) {
-    return qdrantClient.delete(COLLECTION_NAME, {
+    return qdrantClient.delete(collectionName, {
+        wait: true,
         filter: {
-            must: [{ key: "metadata.topicId", match: { value: topicId.toString() } }]
+            must: [{ key: 'metadata.topicId', match: { value: String(topicId) } }]
         }
     });
 }
