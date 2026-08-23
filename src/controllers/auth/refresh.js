@@ -1,58 +1,54 @@
 const authService = require('../../services/auth');
-const PlatformUser = require('../../models/platform-user');
-const { setRefreshCookie, clearRefreshCookie } = require('../../utils/auth-cookie');
 const successHandler = require('../../utils/success-handler');
 const errorHandler = require('../../utils/error-handler');
 const logHandler = require('../../utils/log-handler');
 const { ACTIONS_CONFIG } = require('../../constants/actions');
-
-const rejectSession = async (res, message, errors) => {
-    await logHandler({
-        action: ACTIONS_CONFIG.AUTH.actions.REFRESH_INVALID.key,
-        message,
-        userId: null,
-        status: 'error'
-    });
-
-    clearRefreshCookie(res);
-    return errorHandler(res, 401, 'Сессия истекла', errors);
-};
+const PlatformUser = require('../../models/platform-user');
+const logger = require('../../utils/logger');
 
 module.exports = async (req, res) => {
-    const token = req.cookies?.refreshToken;
+    const token = req.cookies.refreshToken;
 
     if (!token) {
-        return errorHandler(res, 401, 'Сессия истекла', [
-            { path: 'refreshToken', message: 'Токен обновления не предоставлен' }
-        ]);
+        return errorHandler(res, 401, 'Сессия истекла');
     }
 
     const decoded = authService.validateRefreshToken(token);
 
     if (!decoded) {
-        return rejectSession(res, 'Попытка обновления с невалидным или протухшим токеном', [
-            { path: 'refreshToken', message: 'Невалидный или просроченный токен обновления' }
+        await logHandler({
+            action: ACTIONS_CONFIG.AUTH.actions.REFRESH_INVALID.key,
+            message: 'Попытка обновления с невалидным или протухшим токеном',
+            userId: null,
+            status: 'error'
+        });
+
+        return errorHandler(res, 403, 'Невалидный токен обновления', [
+            { path: 'refreshToken', message: 'Refresh token invalid or expired' }
         ]);
     }
 
-    // Токен может пережить блокировку или удаление аккаунта —
-    // без этой проверки заблокированный пользователь продлевает сессию бесконечно.
-    const user = await PlatformUser.findById(decoded.id).select('status role').lean();
-
-    if (!user || user.status === 'blocked') {
-        return rejectSession(res, `Обновление сессии для недоступного аккаунта ${decoded.id}`, [
-            { path: 'refreshToken', message: 'Аккаунт заблокирован или удалён' }
-        ]);
+    try {
+        await PlatformUser.findByIdAndUpdate(decoded.id, {
+            lastLogin: new Date()
+        });
+    } catch (error) {
+        logger.error('Ошибка при обновлении lastLogin', null, error.message);
     }
-
-    await PlatformUser.findByIdAndUpdate(decoded.id, { lastLogin: new Date() });
 
     const { accessToken, refreshToken } = authService.generateTokens({
         id: decoded.id,
-        role: user.role
+        role: decoded.role
     });
 
-    setRefreshCookie(res, refreshToken);
+    res.cookie('refreshToken', refreshToken, {
+        httpOnly: true,
+        secure: true,
+        sameSite: 'none',
+        path: '/',
+        domain: process.env.MAIN_DOMAIN,
+        expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+    });
 
     return successHandler(res, 200, 'Токен успешно обновлен', { accessToken });
 };

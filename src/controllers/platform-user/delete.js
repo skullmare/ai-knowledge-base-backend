@@ -11,12 +11,6 @@ module.exports = async (req, res) => {
     try {
         const userToDelete = await PlatformUser.findByIdAndDelete(id);
 
-        if (!userToDelete) {
-            return errorHandler(res, 404, 'Пользователь не найден', [
-                { path: 'id', message: `Пользователь с ID ${id} отсутствует в системе` }
-            ]);
-        }
-
         await logHandler({
             action: ACTIONS_CONFIG.PLATFORM_USERS.actions.DELETE.key,
             message: `Удален сотрудник: ${userToDelete.login} (${userToDelete.firstName} ${userToDelete.lastName})`,

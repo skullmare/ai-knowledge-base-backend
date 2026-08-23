@@ -3,7 +3,6 @@ const successHandler = require('../../utils/success-handler');
 const errorHandler = require('../../utils/error-handler');
 const logHandler = require('../../utils/log-handler');
 const { ACTIONS_CONFIG } = require('../../constants/actions');
-const { searchRegex, buildPagination } = require('../../utils/query-helpers');
 
 module.exports = async (req, res) => {
     const currentPlatformUserId = req.user?.id;
@@ -13,8 +12,11 @@ module.exports = async (req, res) => {
         const filter = {};
 
         if (search) {
-            const pattern = searchRegex(search);
-            filter.$or = [{ firstName: pattern }, { lastName: pattern }, { phone: pattern }];
+            filter.$or = [
+                { firstName: { $regex: search, $options: 'i' } },
+                { lastName: { $regex: search, $options: 'i' } },
+                { phone: { $regex: search, $options: 'i' } }
+            ];
         }
 
         if (role) {
@@ -25,30 +27,34 @@ module.exports = async (req, res) => {
             filter.status = status;
         }
 
-        // { $exists: false, $eq: null } не находит ничего: условия противоречат друг другу.
         if (hasPhone !== undefined) {
-            filter.phone = hasPhone
-                ? { $nin: [null, ''] }
-                : { $in: [null, ''] };
+            if (hasPhone) {
+                filter.phone = { $exists: true, $ne: null, $nin: [''] };
+            } else {
+                filter.phone = { $exists: false, $eq: null };
+            }
         }
+
+        const current = page;
+        const skip = (current - 1) * limit;
 
         const [agentUsers, total] = await Promise.all([
             AgentUser.find(filter)
                 .populate('role', 'name')
-                .sort({ createdAt: -1 })
-                .skip((page - 1) * limit)
+                .skip(skip)
                 .limit(limit)
-                .lean(),
+                .sort({ createdAt: -1 }),
             AgentUser.countDocuments(filter)
         ]);
 
-        return successHandler(
-            res,
-            200,
-            'Список пользователей агента успешно получен',
-            agentUsers,
-            buildPagination(total, page, limit)
-        );
+        const pagination = {
+            total,
+            current,
+            limit,
+            pages: Math.ceil(total / limit)
+        };
+
+        return successHandler(res, 200, 'Список пользователей агента успешно получен', agentUsers, pagination);
 
     } catch (error) {
         await logHandler({

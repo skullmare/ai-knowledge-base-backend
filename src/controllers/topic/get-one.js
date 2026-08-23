@@ -1,5 +1,4 @@
 const Topic = require('../../models/topic');
-const { TOPIC_POPULATE } = require('../../constants/topic-populate');
 const successHandler = require('../../utils/success-handler');
 const errorHandler = require('../../utils/error-handler');
 const logHandler = require('../../utils/log-handler');
@@ -10,15 +9,14 @@ module.exports = async (req, res) => {
     const userId = req.user?.id;
 
     try {
-        const topic = await Topic.findById(id).populate(TOPIC_POPULATE).lean();
+        const result = await Topic.findById(id)
+            .populate('metadata.category', 'name')
+            .populate('metadata.accessibleByRoles', 'name')
+            .populate('createdBy', 'firstName lastName photoUrl') 
+            .populate('updatedBy', 'firstName lastName photoUrl')
+            .lean();
 
-        if (!topic) {
-            return errorHandler(res, 404, 'Тема не найдена', [
-                { path: 'id', message: `Тема с ID ${id} отсутствует в системе` }
-            ]);
-        }
-
-        return successHandler(res, 200, 'Данные темы получены', topic);
+        return successHandler(res, 200, 'Данные темы получены', result);
 
     } catch (error) {
         await logHandler({
@@ -29,8 +27,11 @@ module.exports = async (req, res) => {
             status: 'error'
         });
 
-        return errorHandler(res, 500, 'Ошибка сервера при получении темы', [
-            { path: 'server', message: error.message }
-        ]);
+        return errorHandler(
+            res,
+            500,
+            'Ошибка сервера при получении темы',
+            [{ path: 'server', message: error.message }]
+        );
     }
 };

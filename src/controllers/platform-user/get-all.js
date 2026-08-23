@@ -1,5 +1,5 @@
 const PlatformUser = require('../../models/platform-user');
-const { searchRegex, buildPagination } = require('../../utils/query-helpers');
+
 const successHandler = require('../../utils/success-handler');
 const errorHandler = require('../../utils/error-handler');
 
@@ -8,34 +8,54 @@ module.exports = async (req, res) => {
 
     try {
         const filter = {};
+
         if (status) filter.status = status;
         if (role) filter.role = role;
 
         if (search) {
-            const pattern = searchRegex(search);
+            const searchRegex = new RegExp(search, 'i');
             filter.$or = [
-                { login: pattern },
-                { firstName: pattern },
-                { lastName: pattern },
-                { email: pattern }
+                { login: searchRegex },
+                { firstName: searchRegex },
+                { lastName: searchRegex },
+                { email: searchRegex }
             ];
         }
+
+        const current = page;
+        const skip = (current - 1) * limit;
 
         const [users, total] = await Promise.all([
             PlatformUser.find(filter)
                 .populate('role', 'name')
                 .sort({ createdAt: -1 })
-                .skip((page - 1) * limit)
+                .skip(skip)
                 .limit(limit)
                 .lean(),
             PlatformUser.countDocuments(filter)
         ]);
 
-        return successHandler(res, 200, 'Список сотрудников успешно получен', users, buildPagination(total, page, limit));
+        const pagination = {
+            total,
+            current,
+            limit,
+            pages: Math.ceil(total / limit)
+        };
+
+        return successHandler(
+            res,
+            200,
+            'Список сотрудников успешно получен',
+            users,
+            pagination
+        );
 
     } catch (error) {
-        return errorHandler(res, 500, 'Ошибка сервера при получении списка пользователей', [
-            { path: 'server', message: error.message }
-        ]);
+        return errorHandler(
+            res,
+            500,
+            'Ошибка сервера при получении списка пользователей',
+            [{ path: 'server', message: error.message }]
+        );
     }
 };

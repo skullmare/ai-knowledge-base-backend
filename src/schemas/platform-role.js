@@ -1,21 +1,23 @@
 const mongoose = require('mongoose');
 const { z } = require('zod');
 const { ALL_PERMISSIONS } = require('../constants/permissions');
-const { objectId: objectIdSchema } = require('./common');
 
-const objectId = objectIdSchema();
+const objectId = z.string()
+    .trim()
+    .refine(v => mongoose.Types.ObjectId.isValid(v), "Некорректный ID");
 
-// path задаётся только для проверки на уровне объекта: внутри superRefine
-// поля zod дописывает путь сам, иначе в ответе получается "name.name".
-const roleNameIsUnique = (currentPlatformRoleId = null, path) => async (name, ctx) => {
+const roleNameIsUnique = (currentPlatformRoleId = null) => async (name, ctx) => {
     const query = { name: name.trim() };
-    if (currentPlatformRoleId) query._id = { $ne: currentPlatformRoleId };
+    if (currentPlatformRoleId) {
+        query._id = { $ne: currentPlatformRoleId };
+    }
 
-    if (await mongoose.model('PlatformRole').exists(query)) {
+    const exists = await mongoose.model('PlatformRole').exists(query);
+    if (exists) {
         ctx.addIssue({
             code: 'custom',
-            message: 'Роль с таким названием уже существует',
-            ...(path ? { path } : {})
+            path: ['name'],
+            message: 'Роль с таким названием уже существует'
         });
     }
 };
@@ -75,7 +77,7 @@ const updatePlatformRoleSchema = z.object({
         }
 
         if (data.body.name) {
-            await roleNameIsUnique(data.params.id, ['body', 'name'])(data.body.name, ctx);
+            await roleNameIsUnique(data.params.id)(data.body.name, ctx);
         }
     })
 );

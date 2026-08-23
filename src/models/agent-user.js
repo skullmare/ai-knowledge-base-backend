@@ -11,7 +11,6 @@ const agentUserSchema = new mongoose.Schema({
     },
     phone: {
         type: String,
-        trim: true,
         unique: true,
         sparse: true
     },
@@ -45,6 +44,10 @@ const agentUserSchema = new mongoose.Schema({
 
 agentUserSchema.index({ chatIdTG: 1 }, { unique: true, sparse: true });
 agentUserSchema.index({ chatIdMAX: 1 }, { unique: true, sparse: true });
+
+agentUserSchema.virtual('fullName').get(function() {
+    return `${this.firstName || ''} ${this.lastName || ''}`.trim();
+});
 
 const AgentUser = mongoose.model('AgentUser', agentUserSchema);
 module.exports = AgentUser;

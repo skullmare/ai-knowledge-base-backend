@@ -1,7 +1,6 @@
-const PlatformUser = require('../../models/platform-user');
+const bcrypt = require('bcryptjs');
 const authService = require('../../services/auth');
-const { comparePassword } = require('../../utils/password-handler');
-const { setRefreshCookie } = require('../../utils/auth-cookie');
+const PlatformUser = require('../../models/platform-user');
 const successHandler = require('../../utils/success-handler');
 const errorHandler = require('../../utils/error-handler');
 const logHandler = require('../../utils/log-handler');
@@ -10,91 +9,82 @@ const logger = require('../../utils/logger');
 
 const TWO_FACTOR_CODE_TTL_MS = 15 * 60 * 1000;
 const MAX_ATTEMPTS = 3;
-
-const clearCode = (userId, extra = {}) =>
-    PlatformUser.findByIdAndUpdate(userId, {
-        twoFactorCode: null,
-        twoFactorCodeSentAt: null,
-        twoFactorAttempts: 0,
-        ...extra
-    });
+const MAIN_DOMAIN = process.env.MAIN_DOMAIN;
 
 module.exports = async (req, res) => {
-    const { login: userLogin, code } = req.validatedData.body;
-
     try {
+        const { login: userLogin, code } = req.body;
         const user = await PlatformUser.findOne({ login: userLogin }).select(
             '+twoFactorCode +twoFactorCodeSentAt +twoFactorAttempts'
         );
 
-        // Сообщение одинаковое для несуществующего логина и незапрошенного кода,
-        // чтобы не подсказывать перебором существующие учётные записи.
-        if (!user || !user.twoFactorCode || !user.twoFactorCodeSentAt) {
-            return errorHandler(res, 401, 'Код подтверждения не запрашивался или истёк. Выполните вход заново.', [
-                { path: 'code', message: 'Код недействителен' }
+        if (!user) {
+            return errorHandler(res, 401, 'Ошибка авторизации', [
+                { path: 'login', message: 'Пользователь не найден' }
             ]);
         }
 
-        if (user.status === 'blocked') {
-            return errorHandler(res, 403, 'Доступ запрещён', [
-                { path: 'login', message: 'Ваш аккаунт заблокирован' }
-            ]);
+        if (!user.twoFactorCode || !user.twoFactorCodeSentAt) {
+            return errorHandler(res, 400, 'Код подтверждения не был запрошен. Выполните вход заново.');
         }
 
         const now = new Date();
-        const expiresAt = new Date(new Date(user.twoFactorCodeSentAt).getTime() + TWO_FACTOR_CODE_TTL_MS);
+        const sentAt = new Date(user.twoFactorCodeSentAt);
+        const codeExpired = now > new Date(sentAt.getTime() + TWO_FACTOR_CODE_TTL_MS);
 
-        if (now > expiresAt) {
-            await clearCode(user._id);
+        if (codeExpired) {
             await logHandler({
                 action: ACTIONS_CONFIG.AUTH.actions.TWO_FACTOR_EXPIRED.key,
                 message: `Истёкший код 2FA для пользователя ${userLogin}`,
                 userId: user._id,
                 status: 'error'
             });
-
-            return errorHandler(res, 401, 'Срок действия кода истёк. Выполните вход заново.', [
-                { path: 'code', message: 'Код просрочен' }
-            ]);
+            return errorHandler(res, 401, 'Срок действия кода истёк. Выполните вход заново.');
         }
 
         if (user.twoFactorAttempts >= MAX_ATTEMPTS) {
-            return errorHandler(res, 429, 'Превышено количество попыток. Выполните вход заново.', [
-                { path: 'code', message: 'Слишком много неудачных попыток' }
-            ]);
+            return errorHandler(res, 429, 'Превышено количество попыток. Выполните вход заново.');
         }
 
-        if (!(await comparePassword(code, user.twoFactorCode))) {
-            const attempts = user.twoFactorAttempts + 1;
-            await PlatformUser.findByIdAndUpdate(user._id, { twoFactorAttempts: attempts });
+        const isValid = await bcrypt.compare(code, user.twoFactorCode);
+
+        if (!isValid) {
+            const newAttempts = user.twoFactorAttempts + 1;
+            await PlatformUser.findByIdAndUpdate(user._id, { twoFactorAttempts: newAttempts });
 
             await logHandler({
                 action: ACTIONS_CONFIG.AUTH.actions.TWO_FACTOR_FAILED.key,
-                message: `Неверный код 2FA для пользователя ${userLogin} (попытка ${attempts}/${MAX_ATTEMPTS})`,
+                message: `Неверный код 2FA для пользователя ${userLogin} (попытка ${newAttempts}/${MAX_ATTEMPTS})`,
                 userId: user._id,
                 status: 'error'
             });
 
-            const remaining = MAX_ATTEMPTS - attempts;
+            const remaining = MAX_ATTEMPTS - newAttempts;
+            if (remaining <= 0) {
+                return errorHandler(res, 401, 'Неверный код. Превышено количество попыток. Выполните вход заново.');
+            }
 
-            return errorHandler(
-                res,
-                401,
-                remaining > 0
-                    ? `Неверный код подтверждения. Осталось попыток: ${remaining}.`
-                    : 'Неверный код. Превышено количество попыток. Выполните вход заново.',
-                [{ path: 'code', message: 'Неверный код подтверждения' }]
-            );
+            return errorHandler(res, 401, `Неверный код подтверждения. Осталось попыток: ${remaining}.`);
         }
 
-        await clearCode(user._id, { lastLogin: now });
-
-        const { accessToken, refreshToken } = authService.generateTokens({
-            id: user._id,
-            role: user.role
+        await PlatformUser.findByIdAndUpdate(user._id, {
+            twoFactorCode: null,
+            twoFactorCodeSentAt: null,
+            twoFactorAttempts: 0,
+            lastLogin: now
         });
 
-        setRefreshCookie(res, refreshToken);
+        const payload = { id: user._id, role: user.role };
+        const { accessToken, refreshToken } = authService.generateTokens(payload);
+
+        res.cookie('refreshToken', refreshToken, {
+            httpOnly: true,
+            secure: true,
+            sameSite: 'none',
+            path: '/',
+            domain: MAIN_DOMAIN,
+            expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        });
 
         await logHandler({
             action: ACTIONS_CONFIG.AUTH.actions.TWO_FACTOR_SUCCESS.key,
@@ -107,7 +97,6 @@ module.exports = async (req, res) => {
 
     } catch (error) {
         logger.error('Ошибка при проверке кода 2FA', null, error.message);
-
         await logHandler({
             action: ACTIONS_CONFIG.AUTH.actions.SERVER_ERROR.key,
             message: `Ошибка сервера при проверке кода 2FA: ${error.message}`,
@@ -116,7 +105,7 @@ module.exports = async (req, res) => {
         });
 
         return errorHandler(res, 500, 'Ошибка сервера', [
-            { path: 'server', message: 'Не удалось проверить код подтверждения' }
+            { path: 'server', message: error.message }
         ]);
     }
 };

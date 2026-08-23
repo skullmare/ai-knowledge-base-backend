@@ -1,33 +1,42 @@
-const { qdrantClient, collectionName } = require('../../config/qdrant');
+const { qdrantClient } = require('../../config/qdrant');
 const logger = require('../utils/logger');
 
-const VECTOR_SIZE = Number(process.env.EMBEDDING_VECTOR_SIZE) || 1536;
-const PAYLOAD_INDEXES = ['metadata.category', 'metadata.accessibleByRoles', 'metadata.topicId'];
-
 async function initQdrant() {
+    const collectionName = "knowledge_base";
+
     try {
-        const { collections } = await qdrantClient.getCollections();
-        const exists = collections.some(collection => collection.name === collectionName);
+        const collections = await qdrantClient.getCollections();
+        const exists = collections.collections.some(c => c.name === collectionName);
 
         if (!exists) {
             await qdrantClient.createCollection(collectionName, {
-                vectors: { size: VECTOR_SIZE, distance: 'Cosine' }
+                vectors: {
+                    size: 1536, 
+                    distance: 'Cosine'
+                }
             });
-            logger.success(`Коллекция ${collectionName} создана`);
-        }
 
-        // Индексы создаются каждый запуск (операция идемпотентна):
-        // коллекция могла быть создана вручную или раньше, чем появились фильтры.
-        for (const field of PAYLOAD_INDEXES) {
             await qdrantClient.createPayloadIndex(collectionName, {
-                field_name: field,
-                field_schema: 'keyword'
+                field_name: "metadata.category",
+                field_schema: "keyword"
             });
-        }
 
-        logger.success(`Инициализация коллекции ${collectionName} и payload-индексов завершена`);
+            await qdrantClient.createPayloadIndex(collectionName, {
+                field_name: "metadata.accessibleByRoles",
+                field_schema: "keyword"
+            });
+
+            await qdrantClient.createPayloadIndex(collectionName, {
+                field_name: "metadata.topicId",
+                field_schema: "keyword"
+            });
+
+            logger.success(`Инициализация коллекции ${collectionName} и всех индексов завершена`);
+        } else {
+            logger.success(`Коллекция ${collectionName} уже существует`);
+        }
     } catch (error) {
-        logger.error('Ошибка при инициализации Qdrant', null, error?.cause || error.message || error);
+        logger.error("Ошибка при инициализации Qdrant", null, error?.cause || error.message || error);
     }
 }
 
