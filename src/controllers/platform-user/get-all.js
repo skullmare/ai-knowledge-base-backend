@@ -1,5 +1,5 @@
 const PlatformUser = require('../../models/platform-user');
-
+const { searchRegex, buildPagination } = require('../../utils/query-helpers');
 const successHandler = require('../../utils/success-handler');
 const errorHandler = require('../../utils/error-handler');
 
@@ -8,54 +8,34 @@ module.exports = async (req, res) => {
 
     try {
         const filter = {};
-
         if (status) filter.status = status;
         if (role) filter.role = role;
 
         if (search) {
-            const searchRegex = new RegExp(search, 'i');
+            const pattern = searchRegex(search);
             filter.$or = [
-                { login: searchRegex },
-                { firstName: searchRegex },
-                { lastName: searchRegex },
-                { email: searchRegex }
+                { login: pattern },
+                { firstName: pattern },
+                { lastName: pattern },
+                { email: pattern }
             ];
         }
-
-        const current = page;
-        const skip = (current - 1) * limit;
 
         const [users, total] = await Promise.all([
             PlatformUser.find(filter)
                 .populate('role', 'name')
                 .sort({ createdAt: -1 })
-                .skip(skip)
+                .skip((page - 1) * limit)
                 .limit(limit)
                 .lean(),
             PlatformUser.countDocuments(filter)
         ]);
 
-        const pagination = {
-            total,
-            current,
-            limit,
-            pages: Math.ceil(total / limit)
-        };
-
-        return successHandler(
-            res,
-            200,
-            'Список сотрудников успешно получен',
-            users,
-            pagination
-        );
+        return successHandler(res, 200, 'Список сотрудников успешно получен', users, buildPagination(total, page, limit));
 
     } catch (error) {
-        return errorHandler(
-            res,
-            500,
-            'Ошибка сервера при получении списка пользователей',
-            [{ path: 'server', message: error.message }]
-        );
+        return errorHandler(res, 500, 'Ошибка сервера при получении списка пользователей', [
+            { path: 'server', message: error.message }
+        ]);
     }
 };

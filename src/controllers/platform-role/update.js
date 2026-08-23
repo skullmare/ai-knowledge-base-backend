@@ -13,8 +13,14 @@ module.exports = async (req, res) => {
         const updatedPlatformRole = await PlatformRole.findByIdAndUpdate(
             params.id,
             { $set: body },
-            { returnDocument: 'after' }
+            { returnDocument: 'after', runValidators: true }
         );
+
+        if (!updatedPlatformRole) {
+            return errorHandler(res, 404, 'Роль не найдена', [
+                { path: 'id', message: `Роль с ID ${params.id} отсутствует в системе` }
+            ]);
+        }
 
         await logHandler({
             action: ACTIONS_CONFIG.PLATFORM_ROLES.actions.UPDATE.key,

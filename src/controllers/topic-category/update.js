@@ -12,8 +12,14 @@ module.exports = async (req, res) => {
         const updatedCategory = await TopicCategory.findByIdAndUpdate(
             id,
             { $set: data },
-            { returnDocument: 'after' }
+            { returnDocument: 'after', runValidators: true }
         );
+
+        if (!updatedCategory) {
+            return errorHandler(res, 404, 'Категория не найдена', [
+                { path: 'id', message: `Категория с ID ${id} отсутствует в системе` }
+            ]);
+        }
 
         await logHandler({
             action: ACTIONS_CONFIG.TOPIC_CATEGORIES.actions.UPDATE.key,

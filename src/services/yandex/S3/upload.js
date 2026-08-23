@@ -1,42 +1,33 @@
-const { PutObjectCommand } = require("@aws-sdk/client-s3");
-const path = require('path');
 const fs = require('fs');
+const { PutObjectCommand } = require('@aws-sdk/client-s3');
 const { s3Client } = require('../../../../config/yandexcloud');
-const crypto = require('crypto');
-
-const BUCKET = process.env.BUCKET_NAME;
+const { env } = require('../../../../config/env');
+const { buildObjectKey, buildPublicUrl } = require('./url');
 
 async function uploadSingleFile(file) {
-    const extension = path.extname(file.originalname).toLowerCase();
+    const key = buildObjectKey(file.originalname);
 
-    const fileId = crypto.randomUUID();
-
-    const folder1 = fileId.substring(0, 2);
-    const folder2 = fileId.substring(2, 4);
-
-    const key = `uploads/${folder1}/${folder2}/${fileId}${extension}`;
-
-    const stream = fs.createReadStream(file.path);
     try {
         await s3Client.send(new PutObjectCommand({
-            Bucket: BUCKET,
+            Bucket: env.bucketName,
             Key: key,
-            Body: stream,
+            Body: fs.createReadStream(file.path),
             ContentType: file.mimetype || 'application/octet-stream',
             ContentLength: file.size,
             ACL: 'public-read'
         }));
     } finally {
+        // Временный файл multer нужно убрать в любом случае,
+        // иначе диск заполняется неудачными загрузками.
         fs.unlink(file.path, () => {});
     }
 
     return {
-        url: `https://storage.yandexcloud.net/${BUCKET}/${key}`,
+        url: buildPublicUrl(key),
+        key,
         fileType: file.mimetype,
         originalName: file.originalname
     };
 }
 
-module.exports = { 
-    uploadSingleFile
-};
+module.exports = { uploadSingleFile };

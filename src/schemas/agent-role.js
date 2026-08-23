@@ -1,166 +1,126 @@
 const mongoose = require('mongoose');
 const { z } = require('zod');
+const { objectId } = require('./common');
 
-const objectId = z
-    .string()
-    .trim()
-    .refine(v => mongoose.Types.ObjectId.isValid(v), "Некорректный ID роли агента");
+const roleId = objectId('Некорректный ID роли агента');
 
-const agentRoleNameIsUnique = (currentRoleId = null) => async (name, ctx) => {
+// path задаётся только для проверки на уровне объекта: внутри superRefine
+// поля zod дописывает путь сам, иначе в ответе получается "name.name".
+const nameIsUnique = (currentRoleId = null, path) => async (name, ctx) => {
     const query = { name: name.trim() };
-    if (currentRoleId) {
-        query._id = { $ne: currentRoleId };
-    }
+    if (currentRoleId) query._id = { $ne: currentRoleId };
 
-    const exists = await mongoose.model('AgentRole').exists(query);
-    if (exists) {
+    if (await mongoose.model('AgentRole').exists(query)) {
         ctx.addIssue({
             code: 'custom',
-            path: ['name'],
-            message: 'Роль пользователей агента с таким названием уже существует'
+            message: 'Роль пользователей агента с таким названием уже существует',
+            ...(path ? { path } : {})
+        });
+    }
+};
+
+// Роль хранится в теме как metadata.accessibleByRoles — запрос по
+// accessibleByRoles ничего не находил, и защита от удаления не работала.
+const collectUsage = async (ids) => {
+    const [topics, agentUsers] = await Promise.all([
+        mongoose.model('Topic').countDocuments({ 'metadata.accessibleByRoles': { $in: ids } }),
+        mongoose.model('AgentUser').countDocuments({ role: { $in: ids } })
+    ]);
+
+    return { topics, agentUsers };
+};
+
+const addUsageIssues = ({ topics, agentUsers }, ctx, path) => {
+    if (topics > 0) {
+        ctx.addIssue({
+            code: 'custom',
+            path,
+            message: `Нельзя удалить роль: она назначена темам (${topics} шт.)`
+        });
+    }
+
+    if (agentUsers > 0) {
+        ctx.addIssue({
+            code: 'custom',
+            path,
+            message: `Нельзя удалить роль: она назначена пользователям агента (${agentUsers} шт.)`
         });
     }
 };
 
 const createAgentRoleSchema = z.object({
     body: z.object({
-        name: z.string("Название роли обязательно")
+        name: z.string('Название роли обязательно')
             .trim()
-            .min(1, "Название роли не может быть пустым")
-            .max(50, "Название роли не может быть более 50 символов")
-            .superRefine(agentRoleNameIsUnique()),
-        description: z.string("Описание роли обязательно")
+            .min(1, 'Название роли не может быть пустым')
+            .max(50, 'Название роли не может быть более 50 символов')
+            .superRefine(nameIsUnique()),
+        description: z.string('Описание роли обязательно')
             .trim()
-            .min(1, "Описание роли не может быть пустым")
-            .max(1000, "Описание роли не может быть более 1000 символов")
+            .min(1, 'Описание роли не может быть пустым')
+            .max(1000, 'Описание роли не может быть более 1000 символов')
     })
 });
 
 const updateAgentRoleSchema = z.object({
-    params: z.object({
-        id: objectId
-    }),
+    params: z.object({ id: roleId }),
     body: z.object({
-        name: z.string().trim().min(1).max(100).optional(),
-        description: z.string().trim().min(1).max(1000).optional()
+        name: z.string().trim().min(1, 'Название роли не может быть пустым').max(50, 'Название роли не может быть более 50 символов').optional(),
+        description: z.string().trim().min(1, 'Описание роли не может быть пустым').max(1000, 'Описание роли не может быть более 1000 символов').optional()
     })
-}).pipe(
-    z.object({
-        params: z.object({ id: z.string() }),
-        body: z.object({
-            name: z.string().optional(),
-            description: z.string().optional()
-        })
-    }).superRefine(async (data, ctx) => {
-        const role = await mongoose.model('AgentRole').findById(data.params.id);
-        
-        if (!role) {
-            ctx.addIssue({ 
-                code: 'custom', 
-                path: ['params', 'id'], 
-                message: 'Роль для пользователей агента не найдена' 
-            });
-            return;
-        }
+}).superRefine(async (data, ctx) => {
+    if (!mongoose.Types.ObjectId.isValid(data.params.id)) return;
 
-        if (data.body.name) {
-            await agentRoleNameIsUnique(data.params.id)(data.body.name, ctx);
-        }
-    })
-);
+    if (!(await mongoose.model('AgentRole').exists({ _id: data.params.id }))) {
+        ctx.addIssue({ code: 'custom', path: ['params', 'id'], message: 'Роль для пользователей агента не найдена' });
+        return;
+    }
+
+    if (data.body.name) await nameIsUnique(data.params.id, ['body', 'name'])(data.body.name, ctx);
+});
 
 const deleteAgentRoleSchema = z.object({
-    params: z.object({
-        id: objectId
-    })
-}).pipe(
-    z.object({
-        params: z.object({ id: z.string() }) 
-    }).superRefine(async (data, ctx) => {
-        const role = await mongoose.model('AgentRole').findById(data.params.id);
-        
-        if (!role) {
-            ctx.addIssue({ 
-                code: 'custom', 
-                path: ['params', 'id'], 
-                message: 'Роль для пользователей агента не найдена' 
-            });
-            return;
-        }
+    params: z.object({ id: roleId })
+}).superRefine(async (data, ctx) => {
+    if (!mongoose.Types.ObjectId.isValid(data.params.id)) return;
 
-        const count = await mongoose.model('Topic').countDocuments({ 
-            accessibleByRoles: data.params.id 
-        });
+    if (!(await mongoose.model('AgentRole').exists({ _id: data.params.id }))) {
+        ctx.addIssue({ code: 'custom', path: ['params', 'id'], message: 'Роль для пользователей агента не найдена' });
+        return;
+    }
 
-        if (count > 0) {
-            ctx.addIssue({
-                code: 'custom',
-                path: ['params', 'id'],
-                message: `Нельзя удалить роль "${role.name}", так как она назначена топикам (${count} шт.).`
-            });
-        }
-    })
-);
-
+    addUsageIssues(await collectUsage([data.params.id]), ctx, ['params', 'id']);
+});
 
 const deleteAgentRoleListSchema = z.object({
     body: z.object({
-        ids: z.array(objectId).min(1, "Список ID не может быть пустым")
+        ids: z.array(roleId).min(1, 'Список ID не может быть пустым')
     })
-}).pipe(
-    z.object({
-        body: z.object({ ids: z.array(z.string()) })
-    }).superRefine(async (data, ctx) => {
-        const { ids } = data.body;
-        const AgentRole = mongoose.model('AgentRole');
-        const Topic = mongoose.model('Topic');
+}).superRefine(async (data, ctx) => {
+    const { ids } = data.body;
+    const found = await mongoose.model('AgentRole').countDocuments({ _id: { $in: [...new Set(ids)] } });
 
-        const roles = await AgentRole.find({ _id: { $in: ids } });
-        
-        if (roles.length !== ids.length) {
-            ctx.addIssue({
-                code: 'custom',
-                path: ['ids'],
-                message: 'Некоторые роли не найдены'
-            });
-            return;
-        }
+    if (found !== new Set(ids).size) {
+        ctx.addIssue({ code: 'custom', path: ['body', 'ids'], message: 'Некоторые роли не найдены' });
+        return;
+    }
 
-        const usedInTopics = await Topic.find({ 
-            accessibleByRoles: { $in: ids } 
-        }).populate('accessibleByRoles', 'name');
-
-        if (usedInTopics.length > 0) {
-            const problematicNames = [...new Set(usedInTopics.flatMap(t => 
-                t.accessibleByRoles.filter(r => ids.includes(r._id.toString())).map(r => r.name)
-            ))].join(', ');
-
-            ctx.addIssue({
-                code: 'custom',
-                path: ['ids'],
-                message: `Нельзя удалить роли (${problematicNames}), так как они назначены топикам.`
-            });
-        }
-    })
-);
+    addUsageIssues(await collectUsage(ids), ctx, ['body', 'ids']);
+});
 
 const getOneAgentRoleSchema = z.object({
-    params: z.object({
-        id: objectId
-    })
+    params: z.object({ id: roleId })
 });
 
 const getAllAgentRolesSchema = z.object({
-    query: z.object({
-        search: z.string().trim().optional()
-    })
+    query: z.object({ search: z.string().trim().optional() })
 });
 
 module.exports = {
     createAgentRoleSchema,
     updateAgentRoleSchema,
     deleteAgentRoleSchema,
+    deleteAgentRoleListSchema,
     getOneAgentRoleSchema,
-    getAllAgentRolesSchema,
-    deleteAgentRoleListSchema
+    getAllAgentRolesSchema
 };

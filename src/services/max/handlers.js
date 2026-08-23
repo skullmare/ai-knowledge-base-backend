@@ -72,6 +72,7 @@ async function onMessage(message, bot) {
         const response = await processMessage(user, text);
         return bot.sendMessageToChat(chatId, response);
     } catch (err) {
+        logger.error('[MaxBot] Ошибка обработки запроса пользователя', null, err.message);
         return bot.sendMessageToChat(chatId, 'Произошла ошибка при обработке вашего запроса. Попробуйте ещё раз позже.');
     }
 }

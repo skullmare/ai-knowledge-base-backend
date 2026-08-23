@@ -13,7 +13,7 @@ function initBot() {
 
     bot.on('message', async (msg) => {
         try {
-            await (msg.contact ? onContact(msg) : onMessage(msg));
+            await (msg.contact ? onContact(msg, bot) : onMessage(msg, bot));
         } catch (err) {
             logger.error('[TelegramBot] Ошибка обработки сообщения', null, err.message);
         }

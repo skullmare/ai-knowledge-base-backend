@@ -1,9 +1,8 @@
 const mongoose = require('mongoose');
 const { z } = require('zod');
+const { objectId: objectIdSchema } = require('./common');
 
-const objectId = z.string()
-    .trim()
-    .refine(v => mongoose.Types.ObjectId.isValid(v), "Некорректный ID");
+const objectId = objectIdSchema();
 
 const updateMeSchema = z.object({
     userId: objectId,

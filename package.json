@@ -1,12 +1,15 @@
 {
-  "name": "operon-backend",
+  "name": "ai-knowledge-base-backend",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "Backend платформы управления корпоративными знаниями ИИ-агента",
+  "main": "server.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server.js",
     "dev": "nodemon server.js",
-    "start": "node server.js"
+    "lint": "eslint .",
+    "test": "jest --runInBand",
+    "test:watch": "jest --watch --runInBand",
+    "test:coverage": "jest --coverage --runInBand"
   },
   "repository": {
     "type": "git",
@@ -52,8 +55,12 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@types/jest": "^30.0.0",
     "eslint": "^10.1.0",
     "globals": "^17.4.0",
-    "nodemon": "^3.1.11"
+    "jest": "^30.4.2",
+    "mongodb-memory-server": "^11.2.0",
+    "nodemon": "^3.1.11",
+    "supertest": "^7.2.2"
   }
 }
