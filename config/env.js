@@ -4,8 +4,14 @@ const REQUIRED_IN_PRODUCTION = [
     'JWT_REFRESH_SECRET'
 ];
 
-const toList = (value, fallback = []) =>
-    value ? value.split(',').map(item => item.trim()).filter(Boolean) : fallback;
+const DEV_ORIGINS = ['http://localhost:5173', 'http://localhost:5174'];
+
+// Запасной список для окружений, где CORS_ORIGINS ещё не задан.
+// Пустой список здесь недопустим: браузер не получит Access-Control-Allow-Origin
+// и весь фронтенд перестанет работать из-за незаданной переменной.
+const DEFAULT_ORIGINS = ['https://front-operon123.amvera.io'];
+
+const toList = (value) => value.split(',').map(item => item.trim()).filter(Boolean);
 
 const env = {
     get nodeEnv() {
@@ -24,10 +30,9 @@ const env = {
         return Number(process.env.PORT) || 3000;
     },
     get corsOrigins() {
-        return toList(
-            process.env.CORS_ORIGINS,
-            this.isProd ? [] : ['http://localhost:5173', 'http://localhost:5174']
-        );
+        if (process.env.CORS_ORIGINS) return toList(process.env.CORS_ORIGINS);
+
+        return this.isDev ? DEV_ORIGINS : DEFAULT_ORIGINS;
     },
     get cookieDomain() {
         return process.env.MAIN_DOMAIN || undefined;

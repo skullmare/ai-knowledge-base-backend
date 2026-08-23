@@ -154,4 +154,38 @@ describe('config/env', () => {
             delete process.env.CORS_ORIGINS;
         }
     });
+
+    // Пустой список origin означает, что браузер не получит
+    // Access-Control-Allow-Origin и фронтенд перестанет работать целиком.
+    it.each(['production', 'test', undefined])(
+        'никогда не оставляет список origin пустым (NODE_ENV=%s)',
+        (nodeEnv) => {
+            const savedEnv = process.env.NODE_ENV;
+            const savedOrigins = process.env.CORS_ORIGINS;
+            delete process.env.CORS_ORIGINS;
+
+            if (nodeEnv === undefined) delete process.env.NODE_ENV;
+            else process.env.NODE_ENV = nodeEnv;
+
+            try {
+                const { env } = loadEnv();
+                expect(env.corsOrigins.length).toBeGreaterThan(0);
+            } finally {
+                process.env.NODE_ENV = savedEnv;
+                if (savedOrigins) process.env.CORS_ORIGINS = savedOrigins;
+            }
+        }
+    );
+
+    it('в разработке разрешает локальный дев-сервер', () => {
+        const savedEnv = process.env.NODE_ENV;
+        process.env.NODE_ENV = 'development';
+
+        try {
+            const { env } = loadEnv();
+            expect(env.corsOrigins).toContain('http://localhost:5173');
+        } finally {
+            process.env.NODE_ENV = savedEnv;
+        }
+    });
 });
