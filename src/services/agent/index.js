@@ -49,17 +49,19 @@ async function processMessage(agentUser, userMessage) {
     await Message.create({ agentUserId, role: 'user', content: userMessage });
 
     // Stage 2: generate the final response using original question + retrieved context
-    let responseAgent;
+    let response;
     try {
-        responseAgent = await generateResponse(userMessage, chunks, history);
+        response = await generateResponse(userMessage, chunks, history);
     } catch (err) {
         logger.error('[Agent] Ошибка генерации ответа', null, err.message);
         throw err;
     }
 
-    await Message.create({ agentUserId, role: 'assistant', content: responseAgent });
+    // В историю кладём ответ без блока источников: он относится к текущему
+    // поиску и в следующих запросах только путает модель
+    await Message.create({ agentUserId, role: 'assistant', content: response.answer });
 
-    return responseAgent;
+    return response.message;
 }
 
 module.exports = { processMessage };
