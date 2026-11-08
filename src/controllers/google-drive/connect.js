@@ -1,4 +1,4 @@
-const { exchangeCode } = require('../../services/google/client');
+const { exchangeCode, getAuthType, AUTH_TYPES } = require('../../services/google/client');
 const successHandler = require('../../utils/success-handler');
 const errorHandler = require('../../utils/error-handler');
 const logHandler = require('../../utils/log-handler');
@@ -9,6 +9,13 @@ module.exports = async (req, res) => {
     const userId = req.user?.id;
 
     try {
+        if (await getAuthType() !== AUTH_TYPES.OAUTH) {
+            return errorHandler(res, 409, 'Google Drive работает через сервисный аккаунт', [{
+                path: 'google_drive_auth_type',
+                message: 'OAuth-подключение отключено. Доступ настраивается ключом сервисного аккаунта.',
+            }]);
+        }
+
         const { code } = req.validatedData.body;
         const { email } = await exchangeCode(code);
 

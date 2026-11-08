@@ -117,6 +117,30 @@ const SETTINGS_DEFINITIONS = [
 
     // ── Google Drive ────────────────────────────────────────────────────────
     {
+        key: 'google_drive_auth_type',
+        name: 'Способ авторизации Google Drive',
+        group: SETTINGS_GROUPS.GOOGLE_DRIVE,
+        value: 'service_account',
+        envFallback: 'GOOGLE_DRIVE_AUTH_TYPE',
+        description: 'service_account — сервисный аккаунт (рекомендуется), oauth — подключение аккаунта пользователя.',
+    },
+    {
+        key: 'google_drive_service_account_key_file',
+        name: 'Файл ключа сервисного аккаунта',
+        group: SETTINGS_GROUPS.GOOGLE_DRIVE,
+        value: '',
+        envFallback: 'GOOGLE_SERVICE_ACCOUNT_FILE',
+        description: 'Путь к JSON-ключу сервисного аккаунта Google на сервере.',
+    },
+    {
+        key: 'google_drive_root_folder_id',
+        name: 'Корневая папка Google Drive',
+        group: SETTINGS_GROUPS.GOOGLE_DRIVE,
+        value: '',
+        envFallback: 'GOOGLE_DRIVE_ROOT_FOLDER_ID',
+        description: 'ID папки или общего диска (Shared Drive), расшаренного сервисному аккаунту.',
+    },
+    {
         key: 'google_drive_client_id',
         name: 'Google OAuth Client ID',
         group: SETTINGS_GROUPS.GOOGLE_DRIVE,

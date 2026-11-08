@@ -64,6 +64,12 @@ ROUTER_AI_API_KEY=your_router_ai_key
 ROUTER_AI_BASE_URL=https://routerai.ru/api/v1
 
 # Google Drive (первичное заполнение настроек; далее — через интерфейс)
+# Основной режим — сервисный аккаунт: ключ не истекает, OAuth-подключение не нужно.
+GOOGLE_DRIVE_AUTH_TYPE=service_account
+GOOGLE_SERVICE_ACCOUNT_FILE=./secrets/google-drive-sa.json
+GOOGLE_DRIVE_ROOT_FOLDER_ID=
+
+# Только для GOOGLE_DRIVE_AUTH_TYPE=oauth (запасной режим)
 GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
 GOOGLE_REDIRECT_URI=http://localhost:5174/settings/google-callback
@@ -104,8 +110,28 @@ npm run dev
 | Вкладка | Что настраивается | Право доступа |
 | --- | --- | --- |
 | **RouterAI** | API-ключ и базовый URL | `system_settings.ai_provider` |
-| **Google Drive** | Client ID / Secret, Redirect URI, подключение аккаунта | `system_settings.google_drive` |
+| **Google Drive** | Сервисный аккаунт: путь к JSON-ключу и ID корневой папки. OAuth: Client ID / Secret, Redirect URI | `system_settings.google_drive` |
 | **Агент** | Модель ответов (из списка RouterAI) и промпты агента | `system_settings.agent` |
+
+### Google Drive через сервисный аккаунт
+
+Основной способ авторизации — service account. Его ключ не истекает, поэтому
+интеграция не «слетает» через 7 дней, как OAuth-приложение в статусе Testing.
+
+1. В Google Cloud включите **Google Drive API** и создайте service account
+   (роли IAM не нужны).
+2. Создайте для него **JSON-ключ** и положите файл на сервер вне репозитория,
+   например в `secrets/google-drive-sa.json`.
+3. Расшейте нужную папку на email service account'а
+   (`...@....iam.gserviceaccount.com`) с правами **Viewer**.
+4. Задайте в окружении:
+   - `GOOGLE_DRIVE_AUTH_TYPE=service_account`
+   - `GOOGLE_SERVICE_ACCOUNT_FILE=/путь/к/ключу.json`
+   - `GOOGLE_DRIVE_ROOT_FOLDER_ID=<ID папки из URL drive.google.com/drive/folders/...>`
+
+Листинг начинается от корневой папки, расшаренной SA. Для Shared Drive
+поддерживается выборка по `driveId`. Запасной OAuth-режим
+(`GOOGLE_DRIVE_AUTH_TYPE=oauth`) сохранён для совместимости.
 
 **Векторизация.** Используется `google/gemini-embedding-2`. Модель и
 размерность (3072) зашиты в `src/constants/ai.js` и не настраиваются: вся

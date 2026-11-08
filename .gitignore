@@ -54,6 +54,7 @@ desktop.ini
 *.key
 *.crt
 .secret*
+secrets/
 
 # Базы данных
 *.db

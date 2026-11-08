@@ -1,5 +1,6 @@
 const KnowledgeFile = require('../../models/knowledge-file');
 const { listDriveFiles, getFolderPath } = require('../../services/google/list-files');
+const { describeGoogleError, classifyAuthError, invalidateProbeCache } = require('../../services/google/client');
 const successHandler = require('../../utils/success-handler');
 const errorHandler = require('../../utils/error-handler');
 
@@ -9,7 +10,7 @@ const errorHandler = require('../../utils/error-handler');
  */
 module.exports = async (req, res) => {
     try {
-        const { folderId = 'root', search, pageToken } = req.validatedData.query;
+        const { folderId, search, pageToken } = req.validatedData.query;
 
         const [{ files, nextPageToken }, breadcrumbs] = await Promise.all([
             listDriveFiles({ folderId, search, pageToken }),
@@ -40,8 +41,14 @@ module.exports = async (req, res) => {
             nextPageToken,
         });
     } catch (error) {
+        // Отказ авторизации означает, что сохранённый статус устарел — сбрасываем
+        // кэш проверки, чтобы интерфейс сразу увидел реальное состояние
+        if (classifyAuthError(error)) invalidateProbeCache();
+
+        const message = describeGoogleError(error, 'Не удалось получить файлы Google Drive');
+
         return errorHandler(res, 502, 'Не удалось получить файлы Google Drive', [
-            { path: 'google_drive', message: error.message },
+            { path: 'google_drive', message },
         ]);
     }
 };

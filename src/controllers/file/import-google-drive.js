@@ -1,5 +1,10 @@
 const KnowledgeFile = require('../../models/knowledge-file');
 const { getDriveFileMeta } = require('../../services/google/list-files');
+const {
+    describeGoogleError,
+    classifyAuthError,
+    invalidateProbeCache,
+} = require('../../services/google/client');
 const successHandler = require('../../utils/success-handler');
 const errorHandler = require('../../utils/error-handler');
 const logHandler = require('../../utils/log-handler');
@@ -59,15 +64,20 @@ module.exports = async (req, res) => {
 
         return successHandler(res, 201, 'Файл из Google Drive добавлен в базу знаний', file);
     } catch (error) {
+        // Отказ авторизации — повод сразу показать «требуется переподключение»
+        if (classifyAuthError(error)) invalidateProbeCache();
+
+        const message = describeGoogleError(error, 'Подключение файла Google Drive');
+
         await logHandler({
             action: ACTIONS_CONFIG.GOOGLE_DRIVE.actions.SERVER_ERROR.key,
-            message: `Ошибка подключения файла Google Drive: ${error.message}`,
+            message: `Ошибка подключения файла Google Drive: ${message}`,
             userId,
             status: 'error',
         });
 
         return errorHandler(res, 500, 'Ошибка подключения файла Google Drive', [
-            { path: 'server', message: error.message },
+            { path: 'server', message },
         ]);
     }
 };
