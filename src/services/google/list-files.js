@@ -19,7 +19,9 @@ const escapeQuery = (value) => value.replace(/['\\]/g, '\\$&');
 async function listDriveFiles({ folderId, search, pageToken, pageSize = 100 } = {}) {
     const drive = await getDriveClient();
     const rootMeta = await getRootFolderMeta();
-    const targetFolderId = folderId || rootMeta.id;
+    // Интерфейс может явно присылать folderId=root — для service account это
+    // должен быть его корень из настроек, а не пустой «Мой диск» самого SA.
+    const targetFolderId = (!folderId || folderId === 'root') ? rootMeta.id : folderId;
 
     const conditions = ['trashed = false'];
     const params = {
@@ -67,7 +69,7 @@ async function listDriveFiles({ folderId, search, pageToken, pageSize = 100 } = 
  */
 async function getFolderPath(folderId) {
     const rootMeta = await getRootFolderMeta();
-    const targetId = folderId || rootMeta.id;
+    const targetId = (!folderId || folderId === 'root') ? rootMeta.id : folderId;
 
     if (targetId === rootMeta.id) {
         return [{ id: rootMeta.id, name: rootMeta.name }];
