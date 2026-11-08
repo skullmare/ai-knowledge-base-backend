@@ -1,5 +1,6 @@
 const KnowledgeFile = require('../../models/knowledge-file');
 const { listDriveFiles, getFolderPath } = require('../../services/google/list-files');
+const { isReauthError } = require('../../services/google/client');
 const successHandler = require('../../utils/success-handler');
 const errorHandler = require('../../utils/error-handler');
 
@@ -9,7 +10,7 @@ const errorHandler = require('../../utils/error-handler');
  */
 module.exports = async (req, res) => {
     try {
-        const { folderId = 'root', search, pageToken } = req.validatedData.query;
+        const { folderId, search, pageToken } = req.validatedData.query;
 
         const [{ files, nextPageToken }, breadcrumbs] = await Promise.all([
             listDriveFiles({ folderId, search, pageToken }),
@@ -40,6 +41,13 @@ module.exports = async (req, res) => {
             nextPageToken,
         });
     } catch (error) {
+        if (isReauthError(error)) {
+            return errorHandler(res, 409, 'Google Drive требует повторного подключения', [{
+                path: 'google_drive',
+                message: 'Ключ сервисного аккаунта или refresh token недействителен. Обновите доступ в настройках системы.',
+            }]);
+        }
+
         return errorHandler(res, 502, 'Не удалось получить файлы Google Drive', [
             { path: 'google_drive', message: error.message },
         ]);

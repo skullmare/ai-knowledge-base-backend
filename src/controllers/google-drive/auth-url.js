@@ -1,4 +1,4 @@
-const { getOAuthClient, buildAuthUrl } = require('../../services/google/client');
+const { getOAuthClient, buildAuthUrl, getAuthType, AUTH_TYPES } = require('../../services/google/client');
 const { getSetting } = require('../../services/settings');
 const successHandler = require('../../utils/success-handler');
 const errorHandler = require('../../utils/error-handler');
@@ -6,6 +6,13 @@ const errorHandler = require('../../utils/error-handler');
 /** Ссылка на экран согласия Google — открывается в интерфейсе настроек. */
 module.exports = async (req, res) => {
     try {
+        if (await getAuthType() !== AUTH_TYPES.OAUTH) {
+            return errorHandler(res, 409, 'Google Drive работает через сервисный аккаунт', [{
+                path: 'google_drive_auth_type',
+                message: 'OAuth-подключение отключено. Доступ настраивается ключом сервисного аккаунта.',
+            }]);
+        }
+
         const redirectUri = await getSetting('google_drive_redirect_uri');
 
         // Без redirect_uri Google ответит 400 уже на своей стороне — сообщаем раньше

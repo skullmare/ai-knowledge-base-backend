@@ -1,4 +1,4 @@
-const { getDriveClient } = require('./client');
+const { getDriveClient, getRootFolderMeta } = require('./client');
 
 const FOLDER_MIME = 'application/vnd.google-apps.folder';
 const FIELDS = 'nextPageToken, files(id, name, mimeType, size, iconLink, webViewLink, modifiedTime, parents)';
@@ -7,32 +7,44 @@ const escapeQuery = (value) => value.replace(/['\\]/g, '\\$&');
 
 /**
  * Содержимое папки Google Drive (или результаты поиска по всему диску).
+ * Если folderId не передан, листинг идёт от корневой папки, расшаренной
+ * сервисному аккаунту.
  *
  * @param {Object} options
- * @param {string} [options.folderId='root']
+ * @param {string} [options.folderId] — по умолчанию корневая папка из настроек
  * @param {string} [options.search] — если задан, ищем по всему диску, игнорируя папку
  * @param {string} [options.pageToken]
  * @param {number} [options.pageSize=100]
  */
-async function listDriveFiles({ folderId = 'root', search, pageToken, pageSize = 100 } = {}) {
+async function listDriveFiles({ folderId, search, pageToken, pageSize = 100 } = {}) {
     const drive = await getDriveClient();
+    const rootMeta = await getRootFolderMeta();
+    const targetFolderId = folderId || rootMeta.id;
 
     const conditions = ['trashed = false'];
-    if (search) {
-        conditions.push(`name contains '${escapeQuery(search)}'`);
-    } else {
-        conditions.push(`'${escapeQuery(folderId)}' in parents`);
-    }
-
-    const { data } = await drive.files.list({
-        q: conditions.join(' and '),
+    const params = {
         fields: FIELDS,
         pageSize,
         pageToken,
         orderBy: 'folder,name',
         supportsAllDrives: true,
         includeItemsFromAllDrives: true,
-    });
+    };
+
+    if (search) {
+        conditions.push(`name contains '${escapeQuery(search)}'`);
+    } else if (targetFolderId === rootMeta.id && rootMeta.driveId && rootMeta.driveId === rootMeta.id) {
+        // Корень общего диска (Shared Drive) нельзя перечислить через parents —
+        // для него используется выборка по driveId.
+        params.driveId = rootMeta.driveId;
+        params.corpora = 'drive';
+    } else {
+        conditions.push(`'${escapeQuery(targetFolderId)}' in parents`);
+    }
+
+    params.q = conditions.join(' and ');
+
+    const { data } = await drive.files.list(params);
 
     const files = (data.files ?? []).map((file) => ({
         id: file.id,
@@ -48,27 +60,43 @@ async function listDriveFiles({ folderId = 'root', search, pageToken, pageSize =
     return { files, nextPageToken: data.nextPageToken ?? null };
 }
 
-/** Хлебные крошки от корня до текущей папки. */
+/**
+ * Хлебные крошки от корневой папки до текущей.
+ * Выше корня не поднимаемся: родитель расшаренной папки сервисному аккаунту
+ * обычно недоступен.
+ */
 async function getFolderPath(folderId) {
-    if (!folderId || folderId === 'root') return [{ id: 'root', name: 'Мой диск' }];
+    const rootMeta = await getRootFolderMeta();
+    const targetId = folderId || rootMeta.id;
+
+    if (targetId === rootMeta.id) {
+        return [{ id: rootMeta.id, name: rootMeta.name }];
+    }
 
     const drive = await getDriveClient();
     const path = [];
-    let currentId = folderId;
+    let currentId = targetId;
 
     // Ограничиваем глубину, чтобы битые ссылки на родителей не зациклили обход
-    for (let depth = 0; depth < 20 && currentId && currentId !== 'root'; depth += 1) {
-        const { data } = await drive.files.get({
-            fileId: currentId,
-            fields: 'id, name, parents',
-            supportsAllDrives: true,
-        });
+    for (let depth = 0; depth < 20 && currentId && currentId !== rootMeta.id && currentId !== 'root'; depth += 1) {
+        let data;
+        try {
+            ({ data } = await drive.files.get({
+                fileId: currentId,
+                fields: 'id, name, parents',
+                supportsAllDrives: true,
+            }));
+        } catch (error) {
+            // Первый элемент — сама запрошенная папка: без него путь бессмысленен
+            if (depth === 0) throw error;
+            break;
+        }
 
         path.unshift({ id: data.id, name: data.name });
         currentId = data.parents?.[0];
     }
 
-    path.unshift({ id: 'root', name: 'Мой диск' });
+    path.unshift({ id: rootMeta.id, name: rootMeta.name });
     return path;
 }
 
@@ -77,7 +105,7 @@ async function getDriveFileMeta(fileId) {
 
     const { data } = await drive.files.get({
         fileId,
-        fields: 'id, name, mimeType, size, iconLink, webViewLink, modifiedTime',
+        fields: 'id, name, mimeType, size, iconLink, webViewLink, modifiedTime, driveId',
         supportsAllDrives: true,
     });
 
@@ -90,6 +118,7 @@ async function getDriveFileMeta(fileId) {
         iconLink: data.iconLink ?? null,
         webViewLink: data.webViewLink ?? null,
         modifiedTime: data.modifiedTime ?? null,
+        driveId: data.driveId ?? null,
     };
 }
 
