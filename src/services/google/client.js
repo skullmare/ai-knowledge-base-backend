@@ -20,6 +20,71 @@ const AUTH_TYPES = {
 
 const ACCESS_CHECK_TTL_MS = 60_000;
 const ROOT_META_TTL_MS = 5 * 60_000;
+const PROBE_TTL_MS = 60_000;
+const PROBE_TIMEOUT_MS = 8_000;
+
+// --- распознавание причин отказа Google ------------------------------------
+
+const REVOKED_MARKERS = ['invalid_grant', 'expired or revoked', 'token has been expired'];
+const CLIENT_MARKERS = ['invalid_client', 'unauthorized_client'];
+
+/** Тело ошибки Google лежит в разных местах у gaxios и googleapis — собираем все. */
+function googleErrorPayload(error) {
+    const candidates = [
+        error?.response?.data,
+        error?.cause?.response?.data,
+        error?.error?.response?.data,
+    ];
+
+    return candidates.find((item) => item && typeof item === 'object') ?? null;
+}
+
+function googleErrorText(error) {
+    const payload = googleErrorPayload(error);
+    const parts = [payload?.error, payload?.error_description, error?.message];
+
+    return parts.filter((part) => typeof part === 'string').join(' ');
+}
+
+/**
+ * Классифицирует отказ авторизации.
+ *
+ * 'token_revoked'   — refresh token/ключ больше не действует, нужен новый доступ;
+ * 'client_rejected' — Google не принял сам OAuth-клиент (ID/Secret).
+ * @returns {'token_revoked'|'client_rejected'|null}
+ */
+function classifyAuthError(error) {
+    const text = googleErrorText(error).toLowerCase();
+    if (!text) return null;
+
+    if (REVOKED_MARKERS.some((marker) => text.includes(marker))) return 'token_revoked';
+    if (CLIENT_MARKERS.some((marker) => text.includes(marker))) return 'client_rejected';
+
+    return null;
+}
+
+const RECONNECT_HINT =
+    'Доступ к Google Диску недействителен или отозван. Проверьте ключ сервисного аккаунта или переподключите аккаунт в настройках системы.';
+
+/** Переводит отказ Google в понятный текст для интерфейса и логов. */
+function describeGoogleError(error, context = 'Запрос к Google Drive') {
+    const kind = classifyAuthError(error);
+
+    if (kind === 'token_revoked') {
+        return `${context}: ${RECONNECT_HINT}`;
+    }
+
+    if (kind === 'client_rejected') {
+        return `${context}: Google отклонил OAuth-клиент. Проверьте Client ID и Client Secret в настройках системы. ${googleErrorText(error)}`.trim();
+    }
+
+    return `${context}: ${error?.message ?? error}`;
+}
+
+/** Ошибка «токен/ключ больше не действует» — повод показать «переподключите Drive». */
+function isReauthError(error) {
+    return classifyAuthError(error) !== null;
+}
 
 const readCredentials = async () => {
     const [clientId, clientSecret, redirectUri] = await Promise.all([
@@ -80,6 +145,7 @@ async function getAuthorizedClient() {
         updateSettings({ google_drive_refresh_token: tokens.refresh_token })
             .then(() => {
                 oauthClientCache = null;
+                invalidateProbeCache();
             })
             .catch((error) => {
                 logger.error('Не удалось сохранить обновлённый refresh token Google Drive', null, error.message);
@@ -216,9 +282,68 @@ async function getRootFolderMeta() {
     return rootMetaPromise;
 }
 
+// --- проверка сохранённого доступа -----------------------------------------
+
+let probeCache = null;
 let accessCheckCache = { key: null, at: 0, result: null };
 
-/** Проверяет, что ключ и доступ к корневой папке рабочие. Результат кэшируется. */
+/** Сбрасывает закэшированные результаты проверок после отказа авторизации. */
+function invalidateProbeCache() {
+    probeCache = null;
+    accessCheckCache = { key: null, at: 0, result: null };
+    oauthClientCache = null;
+    serviceAccountCache.auth = null;
+}
+
+const withTimeout = (promise, ms) => {
+    let timer;
+    const timeout = new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error('Таймаут проверки токена Google')), ms);
+    });
+
+    return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+};
+
+/**
+ * Реально проверяет refresh token у Google (только OAuth-режим).
+ *
+ * Статус нельзя вычислять как «в базе есть непустая строка»: мёртвый токен
+ * тогда показывается как рабочий. Здесь мы обмениваем refresh token на access
+ * token — именно та операция, которая падает при отзыве доступа.
+ *
+ * @returns {Promise<{state: 'ok'|'missing'|'invalid'|'unknown', kind?: string, detail?: string}>}
+ */
+async function probeRefreshToken({ force = false } = {}) {
+    if (!force && probeCache && Date.now() - probeCache.at < PROBE_TTL_MS) {
+        return probeCache.value;
+    }
+
+    let value;
+
+    try {
+        const client = await getOAuthClient();
+        const refreshToken = await getSetting('google_drive_refresh_token');
+
+        if (!refreshToken) {
+            value = { state: 'missing' };
+        } else {
+            client.setCredentials({ refresh_token: refreshToken });
+            await withTimeout(client.refreshAccessToken(), PROBE_TIMEOUT_MS);
+            value = { state: 'ok' };
+        }
+    } catch (error) {
+        const kind = classifyAuthError(error);
+
+        value = kind
+            ? { state: 'invalid', kind, detail: googleErrorText(error) }
+            : { state: 'unknown', detail: error?.message ?? String(error) };
+    }
+
+    probeCache = { at: Date.now(), value };
+    return value;
+}
+
+/** Проверяет, что ключ и доступ к корневой папке рабочие (service account). */
 async function checkRootAccess(rootFolderId) {
     if (accessCheckCache.key === rootFolderId && Date.now() - accessCheckCache.at < ACCESS_CHECK_TTL_MS) {
         return accessCheckCache.result;
@@ -255,7 +380,20 @@ function buildAuthUrl(client, state) {
  */
 async function exchangeCode(code) {
     const client = await getOAuthClient();
-    const { tokens } = await client.getToken(code);
+
+    let tokens;
+    try {
+        ({ tokens } = await client.getToken(code));
+    } catch (error) {
+        if (classifyAuthError(error) === 'token_revoked') {
+            throw new Error(
+                'Google отклонил код авторизации: доступ приложения отозван. Отзовите доступ в аккаунте Google и подключите диск заново.',
+                { cause: error }
+            );
+        }
+
+        throw new Error(describeGoogleError(error, 'Обмен кода авторизации'), { cause: error });
+    }
 
     if (!tokens.refresh_token) {
         throw new Error(
@@ -274,33 +412,33 @@ async function exchangeCode(code) {
         // email не критичен — подключение считаем состоявшимся
     }
 
-    oauthClientCache = null;
     await updateSettings({
         google_drive_refresh_token: tokens.refresh_token,
         google_drive_account_email: email,
     });
 
+    // Новый токен — прежний результат проверки больше не актуален
+    invalidateProbeCache();
+
     return { email };
 }
 
 async function disconnect() {
-    oauthClientCache = null;
     await updateSettings({
         google_drive_refresh_token: '',
         google_drive_account_email: '',
     });
+
+    invalidateProbeCache();
 }
 
-/** Ошибка «токен/ключ больше не действует» — повод показать «переподключите Drive». */
-function isReauthError(error) {
-    const data = error?.response?.data ?? {};
-    const reason = data.error || data.error_description;
-    const message = String(error?.message ?? '');
-
-    return reason === 'invalid_grant'
-        || /invalid_grant|Token has been expired or revoked/i.test(message);
-}
-
+/**
+ * Состояние интеграции для интерфейса.
+ *
+ * isConnected отвечает на вопрос «работает ли доступ прямо сейчас», а не
+ * «есть ли в базе строка токена». Для OAuth-режима это проверка обменом
+ * refresh token, для service account — чтение ключа и доступ к корневой папке.
+ */
 async function getConnectionStatus() {
     const authType = await getAuthType();
     const rootFolderId = await getSetting('google_drive_root_folder_id');
@@ -312,14 +450,55 @@ async function getConnectionStatus() {
             getSetting('google_drive_account_email'),
         ]);
 
-        return {
+        const base = {
             authType,
             isConfigured: Boolean(clientId && clientSecret),
-            isConnected: Boolean(refreshToken),
-            email: email || null,
             redirectUri: redirectUri || null,
+            email: email || null,
+            hasToken: Boolean(refreshToken),
             rootFolderId: null,
-            error: refreshToken ? null : 'Google Drive не подключён.',
+        };
+
+        if (!base.isConfigured) {
+            return { ...base, isConnected: false, needsReconnect: false };
+        }
+
+        if (!refreshToken) {
+            return { ...base, isConnected: false, needsReconnect: false };
+        }
+
+        const probe = await probeRefreshToken();
+
+        if (probe.state === 'ok') {
+            return { ...base, isConnected: true, needsReconnect: false };
+        }
+
+        if (probe.state === 'invalid' && probe.kind === 'token_revoked') {
+            return {
+                ...base,
+                isConnected: false,
+                needsReconnect: true,
+                reason: RECONNECT_HINT,
+            };
+        }
+
+        if (probe.state === 'invalid' && probe.kind === 'client_rejected') {
+            return {
+                ...base,
+                isConnected: false,
+                needsReconnect: false,
+                reason: 'Google отклонил OAuth-клиент. Проверьте Client ID и Client Secret.',
+            };
+        }
+
+        // Сеть, таймаут или иная неясная причина: доступ мог и не пропасть.
+        // Оптимистично считаем подключённым, чтобы не гонять пользователя
+        // по кругу переподключения из-за сетевого сбоя.
+        return {
+            ...base,
+            isConnected: true,
+            needsReconnect: false,
+            probeWarning: `Не удалось проверить токен Google: ${probe.detail ?? 'неизвестная ошибка'}`,
         };
     }
 
@@ -332,26 +511,39 @@ async function getConnectionStatus() {
         error = readError.message;
     }
 
-    let accessible = false;
+    const base = {
+        authType,
+        isConfigured: Boolean(credentials),
+        redirectUri: null,
+        email: credentials?.client_email ?? null,
+        hasToken: false,
+        rootFolderId: rootFolderId || null,
+    };
 
-    if (credentials && rootFolderId) {
-        const check = await checkRootAccess(rootFolderId);
-        accessible = check.ok;
-        if (!check.ok) {
-            error = `Нет доступа к корневой папке Google Drive: ${check.error}`;
-        }
-    } else if (credentials && !rootFolderId) {
-        error = 'Не задан ID корневой папки Google Drive.';
+    if (!credentials) {
+        return { ...base, isConnected: false, needsReconnect: false, reason: error };
+    }
+
+    if (!rootFolderId) {
+        return {
+            ...base,
+            isConnected: false,
+            needsReconnect: false,
+            reason: 'Не задан ID корневой папки Google Drive.',
+        };
+    }
+
+    const check = await checkRootAccess(rootFolderId);
+
+    if (check.ok) {
+        return { ...base, isConnected: true, needsReconnect: false };
     }
 
     return {
-        authType,
-        isConfigured: Boolean(credentials),
-        isConnected: Boolean(credentials && rootFolderId && accessible),
-        email: credentials?.client_email ?? null,
-        redirectUri: null,
-        rootFolderId: rootFolderId || null,
-        error,
+        ...base,
+        isConnected: false,
+        needsReconnect: false,
+        reason: `Нет доступа к корневой папке Google Drive: ${check.error}`,
     };
 }
 
@@ -370,5 +562,9 @@ module.exports = {
     exchangeCode,
     disconnect,
     isReauthError,
+    probeRefreshToken,
+    invalidateProbeCache,
+    classifyAuthError,
+    describeGoogleError,
     getConnectionStatus,
 };

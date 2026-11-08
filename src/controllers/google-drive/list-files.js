@@ -1,6 +1,6 @@
 const KnowledgeFile = require('../../models/knowledge-file');
 const { listDriveFiles, getFolderPath } = require('../../services/google/list-files');
-const { isReauthError } = require('../../services/google/client');
+const { describeGoogleError, classifyAuthError, invalidateProbeCache } = require('../../services/google/client');
 const successHandler = require('../../utils/success-handler');
 const errorHandler = require('../../utils/error-handler');
 
@@ -41,15 +41,14 @@ module.exports = async (req, res) => {
             nextPageToken,
         });
     } catch (error) {
-        if (isReauthError(error)) {
-            return errorHandler(res, 409, 'Google Drive требует повторного подключения', [{
-                path: 'google_drive',
-                message: 'Ключ сервисного аккаунта или refresh token недействителен. Обновите доступ в настройках системы.',
-            }]);
-        }
+        // Отказ авторизации означает, что сохранённый статус устарел — сбрасываем
+        // кэш проверки, чтобы интерфейс сразу увидел реальное состояние
+        if (classifyAuthError(error)) invalidateProbeCache();
+
+        const message = describeGoogleError(error, 'Не удалось получить файлы Google Drive');
 
         return errorHandler(res, 502, 'Не удалось получить файлы Google Drive', [
-            { path: 'google_drive', message: error.message },
+            { path: 'google_drive', message },
         ]);
     }
 };
